@@ -127,9 +127,9 @@ if (K && HP.get('k')) history.replaceState(null, '', location.pathname + '?k=' +
 window.onerror = (m, src, line) => { toast('エラー: ' + m + ' (' + line + ')', 6000); };
 let DATA = null, CUR = null, T = null, timer = null, editing = false, busy = false;
 const OPEN_USER = '';
-let FILTER = 'all';
-try { FILTER = localStorage.getItem('ibxFilter') || 'all'; } catch (e) {}
-function setFilter(f) { FILTER = f; try { localStorage.setItem('ibxFilter', f); } catch (e) {} renderList(); }
+let FILTER = 'need';
+try { FILTER = localStorage.getItem('ibxFilter2') || 'need'; } catch (e) {}
+function setFilter(f) { FILTER = f; try { localStorage.setItem('ibxFilter2', f); } catch (e) {} renderList(); }
 
 function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toast(m, ms) { const t = document.getElementById('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms || 2400); }
@@ -152,8 +152,15 @@ function cacheGet(k) { try { return JSON.parse(localStorage.getItem('ibxc_' + k)
 function cachePut(k, v) { try { localStorage.setItem('ibxc_' + k, JSON.stringify(v)); } catch (e) {} }
 async function loadList() {
   if (!DATA) { const c = cacheGet('list'); if (c) { DATA = c; renderList(); } }
-  try { DATA = await call('ibxList'); cachePut('list', DATA); renderList(); }
+  try { DATA = await call('ibxList'); cachePut('list', DATA); renderList(); prefetch(); }
   catch (e) { if (!DATA) document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+}
+// 全員分のやりとりを裏で読んでおく(1分に1回まで)
+let lastPre = 0;
+async function prefetch() {
+  if (Date.now() - lastPre < 60000) return;
+  lastPre = Date.now();
+  try { const all = await call('ibxThreads'); Object.keys(all).forEach(u => { if (DATA && DATA.quota) all[u].quota = DATA.quota; cachePut('t_' + u, all[u]); }); } catch (e) {}
 }
 function renderList() {
   if (!DATA) return;
