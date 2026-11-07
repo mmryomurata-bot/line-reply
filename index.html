@@ -79,6 +79,13 @@
   .composer textarea { flex:1; min-height:42px; max-height:30vh; font-size:16px; padding:9px 12px; border:1px solid #ccc; border-radius:12px; font-family:inherit; resize:none; }
   .icon { font-size:26px; background:none; border:0; padding:4px; line-height:1; }
   .sendb { font-size:24px; color:#7a8aa8; background:none; border:0; padding:6px; }
+  .rgbar { margin:12px; padding:12px 14px; background:#eef4ff; border:1px solid #c9d8f3; border-radius:14px; color:#24477a; font-size:15px; font-weight:700; cursor:pointer; }
+  #guide { display:none; min-height:100vh; background:var(--bg); }
+  .gi { background:#fff; margin:12px; border:1px solid var(--line); border-radius:14px; padding:12px 14px; }
+  .gi .nm { font-size:17px; }
+  .gi .st { font-size:13px; color:var(--sub); margin-top:4px; }
+  .gprev { white-space:pre-wrap; font-size:13.5px; line-height:1.55; color:#444; background:#fafafa; border-radius:10px; padding:10px; margin:10px 12px; border:1px solid var(--line); }
+  .gimgs { display:flex; gap:6px; margin:0 12px 12px; } .gimgs img { width:31%; border-radius:8px; }
   .toast { position:fixed; left:50%; bottom:30%; transform:translateX(-50%); background:rgba(30,30,30,.92); color:#fff; padding:12px 18px; border-radius:12px; font-size:15px; display:none; z-index:20; max-width:85%; text-align:center; }
 </style>
 </head>
@@ -98,6 +105,10 @@
   <div id="rows"><div class="empty">読み込み中…</div></div>
 </div>
 
+<div id="guide">
+  <div class="th-head"><button class="back" onclick="closeGuide()">‹</button><div class="nm">🏠 出勤前日のルーム案内</div></div>
+  <div id="gBody"><div class="empty">読み込み中…</div></div>
+</div>
 <div id="thread">
   <div class="th-head">
     <button class="back" onclick="closeThread()">‹</button>
@@ -177,7 +188,8 @@ function renderList() {
   document.getElementById('quota').textContent = quotaText(DATA.quota);
   const working = DATA.rows.filter(r => r.today);
   const todayHtml = working.length ? '<div class="summary" style="background:#eaf7ee;border-color:#bfe3c8;color:#1f6b3a"><b>🟢 本日出勤 ' + working.length + '人</b><br>' + working.map(r => esc(r.name)).join('、') + '</div>' : '';
-  document.getElementById('summary').innerHTML = todayHtml + (need.length
+  const rgHtml = '<div class="rgbar" onclick="openGuide()">🏠 ルーム案内' + (DATA.rgWait ? '　<span style="color:#c0392b">確認待ち ' + DATA.rgWait + '人</span>' : '') + '　›</div>';
+  document.getElementById('summary').innerHTML = rgHtml + todayHtml + (need.length
     ? '<div class="summary"><b>要返信 ' + need.length + '人</b><br>' + need.map(r => esc(r.name) + (r.draft ? '（案あり）' : r.noReply ? '（返事は不要そう）' : r.aiWait ? '（AIが返事中）' : '（案を作成中）')).join('、') + '</div>'
     : '<div class="summary" style="background:#eef7ee;border-color:#cfe6cf;color:#2f6b36"><b>返事待ちはありません</b></div>');
   document.getElementById('rows').innerHTML = rows.length ? rows.map(r => `
@@ -336,12 +348,49 @@ function closeThread() {
   if (location.hash) history.pushState(null, '', location.pathname + location.search);
   loadList();
 }
-window.addEventListener('popstate', () => { const h = location.hash.slice(1); h ? openThread(h) : closeThread(); });
+window.addEventListener('popstate', () => { const h = location.hash.slice(1); h === 'guide' ? openGuide() : h ? openThread(h) : (closeGuide(true), closeThread()); });
+
+// ---------- ルーム案内 ----------
+let G = null;
+async function openGuide() {
+  CUR = null; clearTimeout(timer);
+  if (location.hash !== '#guide') history.pushState(null, '', '#guide');
+  document.getElementById('list').style.display = 'none';
+  document.getElementById('thread').style.display = 'none';
+  document.getElementById('guide').style.display = 'block';
+  try { G = await call('rgList'); renderGuide(); } catch (e) { document.getElementById('gBody').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+}
+function closeGuide(quiet) {
+  document.getElementById('guide').style.display = 'none';
+  if (quiet) return;
+  document.getElementById('list').style.display = 'block';
+  if (location.hash) history.pushState(null, '', location.pathname + location.search);
+  loadList();
+}
+const RG_LABEL = { wait: '確認待ち', ok: '送る（予約済み）', skip: '送らない', sent: '送信済み', noline: '公式LINE未連携（送れません）', gone: 'シフトが消えました', error: '送れませんでした' };
+function renderGuide() {
+  const g = G;
+  const rows = g.rows.length ? g.rows.map(r => `
+    <div class="gi">
+      <div class="nm">${esc(r.name)}</div>
+      <div class="st">${r.md}から出勤・ルーム${r.room}　<b>${RG_LABEL[r.status] || r.status}</b></div>
+      ${r.canSend && r.status !== 'sent' && r.status !== 'gone' ? `<div class="cbtns">
+        <button class="cb send" ${r.status === 'ok' ? 'disabled' : ''} onclick="rgDecide('${r.key}', true)">${g.late && r.tomorrow ? '今すぐ送る' : g.sendHour + '時に送る'}</button>
+        <button class="cb" ${r.status === 'skip' ? 'disabled' : ''} onclick="rgDecide('${r.key}', false)">送らない</button></div>` : ''}
+    </div>`).join('') : '<div class="empty">明日から新しく出勤する人はいません<br><span style="font-size:13px">17時以降にキャスカンのシフトを見て出します</span></div>';
+  const prev = ['A', 'B'].map(k => g.guides[k] ? `<div style="margin:16px 12px 0;font-weight:800">ルーム${k}の案内文</div><div class="gprev">${esc(g.guides[k].text)}</div><div class="gimgs">${g.guides[k].images.map(u => '<img src="' + esc(u) + '">').join('')}</div>` : `<div class="gprev">ルーム${k}の案内文が未設定です</div>`).join('');
+  document.getElementById('gBody').innerHTML = rows + prev;
+}
+async function rgDecide(key, send) {
+  try { const r = await call('rgDecide', key, send); toast(r.status === 'sent' ? '送りました' : send ? (G.late ? '送ります' : G.sendHour + '時に送ります') : '送らないにしました'); G = await call('rgList'); renderGuide(); }
+  catch (e) { toast('できませんでした: ' + e.message, 4000); }
+}
 
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
 setInterval(() => { if (!CUR) loadList(); else if (!editing && !busy) openThread(CUR, true); }, 20000);
 if (OPEN_USER) openThread(OPEN_USER);
+else if (location.hash === '#guide') openGuide();
 else if (location.hash.length > 1) openThread(location.hash.slice(1));
 </script>
 </body>
