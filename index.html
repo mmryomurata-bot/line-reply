@@ -147,9 +147,13 @@ async function call(fn, ...args) {
 function quotaText(q) { return q && q.used != null ? (q.limit ? '今月のプッシュ 残り' + (q.limit - q.used) + '通' : '今月のプッシュ ' + q.used + '通') : ''; }
 
 // ---------- 一覧 ----------
+// 前回の中身を端末に覚えておき、開いた瞬間はそれを出す(裏で最新に入れかえる)
+function cacheGet(k) { try { return JSON.parse(localStorage.getItem('ibxc_' + k) || 'null'); } catch (e) { return null; } }
+function cachePut(k, v) { try { localStorage.setItem('ibxc_' + k, JSON.stringify(v)); } catch (e) {} }
 async function loadList() {
-  try { DATA = await call('ibxList'); renderList(); }
-  catch (e) { document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+  if (!DATA) { const c = cacheGet('list'); if (c) { DATA = c; renderList(); } }
+  try { DATA = await call('ibxList'); cachePut('list', DATA); renderList(); }
+  catch (e) { if (!DATA) document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
 }
 function renderList() {
   if (!DATA) return;
@@ -196,9 +200,13 @@ async function openThread(uid, quiet) {
   if (location.hash !== '#' + uid) history.pushState(null, '', '#' + uid);
   document.getElementById('list').style.display = 'none';
   document.getElementById('thread').style.display = 'flex';
-  if (!quiet) document.getElementById('tMsgs').innerHTML = '<div class="empty">読み込み中…</div>';
+  if (!quiet) {
+    const c = cacheGet('t_' + uid);
+    if (c) { T = c; render(); } else document.getElementById('tMsgs').innerHTML = '<div class="empty">読み込み中…</div>';
+  }
   let t;
   try { t = await call('ibxThread', uid); } catch (e) { toast('読み込めませんでした'); return; }
+  cachePut('t_' + uid, t);
   if (CUR !== uid) return;
   if (quiet && editing) { T = Object.assign(T || {}, { hist: t.hist }); }
   else T = t;
