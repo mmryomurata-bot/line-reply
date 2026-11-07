@@ -120,9 +120,10 @@
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbx_XYcMu-bVYr0m_EMUK7hRYI7pmIhqvnsqWokKAOHgWCg-knkKedJbjbmihQIDVMpp/exec';
 const HP = new URLSearchParams(location.hash.slice(1));
-let K = HP.get('k');
+let K = HP.get('k') || new URLSearchParams(location.search).get('k');
 try { if (K) localStorage.setItem('ibx_k', K); else K = localStorage.getItem('ibx_k'); } catch (e) {}
-if (HP.get('k')) history.replaceState(null, '', location.pathname + (HP.get('u') ? '#' + HP.get('u') : ''));
+// 合言葉はURLの ?k= に残す(ホーム画面のアイコンは別の保存場所になるため)。#以降は開く人だけ
+if (K && HP.get('k')) history.replaceState(null, '', location.pathname + '?k=' + encodeURIComponent(K) + (HP.get('u') ? '#' + HP.get('u') : ''));
 window.onerror = (m, src, line) => { toast('エラー: ' + m + ' (' + line + ')', 6000); };
 let DATA = null, CUR = null, T = null, timer = null, editing = false, busy = false;
 const OPEN_USER = '';
