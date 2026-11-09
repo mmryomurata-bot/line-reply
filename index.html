@@ -189,9 +189,7 @@ function renderList() {
   const working = DATA.rows.filter(r => r.today);
   const todayHtml = working.length ? '<div class="summary" style="background:#eaf7ee;border-color:#bfe3c8;color:#1f6b3a"><b>🟢 本日出勤 ' + working.length + '人</b><br>' + working.map(r => esc(r.name)).join('、') + '</div>' : '';
   const rgHtml = '<div class="rgbar" onclick="openGuide()">🏠 ルーム案内' + (DATA.rgWait ? '　<span style="color:#c0392b">確認待ち ' + DATA.rgWait + '人</span>' : '') + '　›</div>';
-  document.getElementById('summary').innerHTML = rgHtml + todayHtml + (need.length
-    ? '<div class="summary"><b>要返信 ' + need.length + '人</b><br>' + need.map(r => esc(r.name) + (r.draft ? '（案あり）' : r.noReply ? '（返事は不要そう）' : r.aiWait ? '（AIが返事中）' : '（案を作成中）')).join('、') + '</div>'
-    : '<div class="summary" style="background:#eef7ee;border-color:#cfe6cf;color:#2f6b36"><b>返事待ちはありません</b></div>');
+  document.getElementById('summary').innerHTML = rgHtml + todayHtml; // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
   document.getElementById('rows').innerHTML = rows.length ? rows.map(r => `
     <div class="row ${r.need ? 'need' : ''}" onclick="openThread('${r.user}')">
       <div class="av" data-pic="${esc(r.pic)}" data-nm="${esc(r.name)}"></div>
