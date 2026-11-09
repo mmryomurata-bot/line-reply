@@ -161,17 +161,27 @@ function quotaText(q) { return q && q.used != null ? (q.limit ? '今月のプッ
 // 前回の中身を端末に覚えておき、開いた瞬間はそれを出す(裏で最新に入れかえる)
 function cacheGet(k) { try { return JSON.parse(localStorage.getItem('ibxc_' + k) || 'null'); } catch (e) { return null; } }
 function cachePut(k, v) { try { localStorage.setItem('ibxc_' + k, JSON.stringify(v)); } catch (e) {} }
-async function loadList() {
+// 一覧と全員のやりとりを1回でまとめて読む(変わった人の分だけ届く)。開いた瞬間は端末に覚えた前回分を出す
+let TH = cacheGet('th') || {}, loading = null;
+function loadList() { return loadAll(); }
+async function loadAll() {
   if (!DATA) { const c = cacheGet('list'); if (c) { DATA = c; renderList(); } }
-  try { DATA = await call('ibxList'); cachePut('list', DATA); renderList(); prefetch(); }
-  catch (e) { if (!DATA) document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
-}
-// 全員分のやりとりを裏で読んでおく(1分に1回まで)
-let lastPre = 0;
-async function prefetch() {
-  if (Date.now() - lastPre < 60000) return;
-  lastPre = Date.now();
-  try { const all = await call('ibxThreads'); Object.keys(all).forEach(u => { if (DATA && DATA.quota) all[u].quota = DATA.quota; cachePut('t_' + u, all[u]); }); } catch (e) {}
+  if (loading) return loading;
+  loading = (async () => {
+    try {
+      const have = {}; Object.keys(TH).forEach(u => have[u] = TH[u].sig);
+      const r = await call('ibxAll', have);
+      const keep = {}; r.rows.forEach(x => keep[x.user] = 1);
+      Object.keys(TH).forEach(u => { if (!keep[u]) delete TH[u]; });
+      Object.assign(TH, r.threads);
+      delete r.threads;
+      DATA = r; cachePut('list', DATA); cachePut('th', TH);
+      if (CUR && TH[CUR] && !editing && !busy) { T = Object.assign({}, TH[CUR], { quota: DATA.quota }); render(); }
+      if (!CUR || document.getElementById('list').style.display !== 'none') renderList();
+    } catch (e) { if (!DATA) document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+    finally { loading = null; }
+  })();
+  return loading;
 }
 function renderList() {
   if (!DATA) return;
@@ -211,25 +221,16 @@ function renderList() {
 }
 
 // ---------- やりとり ----------
-async function openThread(uid, quiet) {
+function openThread(uid, quiet) {
   if (CUR !== uid) { editing = false; document.getElementById('tText').value = ''; }
   CUR = uid;
   if (location.hash !== '#' + uid) history.pushState(null, '', '#' + uid);
   document.getElementById('list').style.display = 'none';
+  document.getElementById('guide').style.display = 'none';
   document.getElementById('thread').style.display = 'flex';
-  if (!quiet) {
-    const c = cacheGet('t_' + uid);
-    if (c) { T = c; render(); } else document.getElementById('tMsgs').innerHTML = '<div class="empty">読み込み中…</div>';
-  }
-  let t;
-  try { t = await call('ibxThread', uid); } catch (e) { toast('読み込めませんでした'); return; }
-  cachePut('t_' + uid, t);
-  if (CUR !== uid) return;
-  if (quiet && editing) { T = Object.assign(T || {}, { hist: t.hist }); }
-  else T = t;
-  render();
-  clearTimeout(timer);
-  if (t.drafting) timer = setTimeout(() => CUR === uid && openThread(uid, true), 8000);
+  if (TH[uid]) { if (!(quiet && editing)) { T = Object.assign({}, TH[uid], { quota: DATA && DATA.quota }); render(); } }
+  else { document.getElementById('tMsgs').innerHTML = '<div class="empty">読み込み中…</div>'; }
+  if (!quiet) loadAll();
 }
 
 function render() {
@@ -246,7 +247,7 @@ function render() {
     const dl = dayLabel(m.t);
     if (dl !== lastDay) { html += '<div class="day">' + dl + '</div>'; lastDay = dl; }
     const side = m.d === 'in' ? 'l' : 'r' + (m.d === 'bot' ? ' bot' : '');
-    html += `<div class="bl ${side}"><div class="b">${esc(m.x)}</div><div class="bt">${m.d === 'bot' ? 'ボット<br>' : ''}${hm(m.t)}</div></div>`;
+    html += `<div class="bl ${side}"${m.pending ? ' style="opacity:.55"' : ''}><div class="b">${esc(m.x)}</div><div class="bt">${m.d === 'bot' ? 'ボット<br>' : ''}${m.pending ? '送信中' : hm(m.t)}</div></div>`;
   });
   html += cardHtml(t);
   const box = document.getElementById('tMsgs');
@@ -292,19 +293,30 @@ function readEdits() {
 function toggleEdit() { readEdits(); editing = !editing; if (!editing) T.dmsgs = (T.dmsgs || []).map(s => s.trim()).filter(Boolean); render(); }
 function addMsg() { readEdits(); T.dmsgs = (T.dmsgs || []).concat(['']); render(); }
 
+// 押した瞬間に画面に出し、裏で送る。送れなかったら元に戻す
 async function doSend(msgs, resume) {
   if (busy) return;
   msgs = msgs.map(s => s.trim()).filter(Boolean);
   if (!msgs.length) { toast('文が空です'); return; }
-  busy = true; render();
+  const uid = CUR, before = JSON.parse(JSON.stringify(T)), now = Date.now();
+  busy = true; editing = false;
+  T.hist = T.hist.concat(msgs.map((x, i) => ({ t: now + i, d: 'me', x: x, pending: 1 })));
+  T.need = false; T.dmsgs = []; T.draft = '';
+  const keepText = document.getElementById('tText').value; document.getElementById('tText').value = '';
+  render();
   try {
-    const r = await call('ibxSend', CUR, msgs, resume);
+    const r = await call('ibxSend', uid, msgs, resume);
     busy = false;
-    if (!r.ok) { toast(r.reason, 4000); render(); return; }
+    if (!r.ok) throw new Error(r.reason);
+    T.hist.forEach(m => delete m.pending); if (CUR === uid) render();
     toast('送りました（' + r.how + '）' + (r.resumed ? '。ボットの質問に戻りました' : ''));
-    editing = false; document.getElementById('tText').value = '';
-    openThread(CUR, true);
-  } catch (e) { busy = false; toast('送れませんでした: ' + e.message, 4000); render(); }
+    if (r.quota && DATA) DATA.quota = r.quota;
+    loadAll();
+  } catch (e) {
+    busy = false;
+    if (CUR === uid) { T = before; document.getElementById('tText').value = keepText; render(); }
+    toast('送れませんでした: ' + e.message, 5000);
+  }
 }
 function sendDraft() {
   readEdits();
@@ -323,10 +335,18 @@ async function discard() {
   toast('案を消しました。下の入力欄から書けます');
 }
 async function redraft() {
-  await call('ibxRedraft', CUR);
-  editing = false; toast('AIに案を作り直してもらっています'); openThread(CUR, true);
+  editing = false; T.dmsgs = []; T.draft = ''; T.drafting = true; render();
+  toast('AIに案を作り直してもらっています');
+  try { await call('ibxRedraft', CUR); } catch (e) { toast('できませんでした: ' + e.message, 4000); }
+  loadAll();
 }
-async function dismiss() { await call('ibxDismiss', CUR); toast('返信不要にしました'); closeThread(); }
+async function dismiss() {
+  const uid = CUR; toast('返信不要にしました');
+  if (TH[uid]) TH[uid].need = false; if (DATA) DATA.rows.forEach(r => { if (r.user === uid) r.need = false; });
+  closeThread();
+  try { await call('ibxDismiss', uid); } catch (e) { toast('できませんでした: ' + e.message, 4000); }
+  loadAll();
+}
 function copyText(s) {
   const ta = document.getElementById('tText'), keep = ta.value;
   try { ta.value = s; ta.focus(); ta.setSelectionRange(0, s.length); const ok = document.execCommand('copy'); ta.value = keep; if (ok) return Promise.resolve(); } catch (e) { ta.value = keep; }
@@ -344,7 +364,7 @@ function closeThread() {
   document.getElementById('thread').style.display = 'none';
   document.getElementById('list').style.display = 'block';
   if (location.hash) history.pushState(null, '', location.pathname + location.search);
-  loadList();
+  renderList(); loadAll();
 }
 window.addEventListener('popstate', () => { const h = location.hash.slice(1); h === 'guide' ? openGuide() : h ? openThread(h) : (closeGuide(true), closeThread()); });
 
@@ -386,7 +406,8 @@ async function rgDecide(key, send) {
 
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
-setInterval(() => { if (!CUR) loadList(); else if (!editing && !busy) openThread(CUR, true); }, 20000);
+setInterval(() => { if (!document.hidden && !editing && !busy) loadAll(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll(); }); // アプリに戻ったらすぐ最新に
 if (OPEN_USER) openThread(OPEN_USER);
 else if (location.hash === '#guide') openGuide();
 else if (location.hash.length > 1) openThread(location.hash.slice(1));
