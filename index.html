@@ -287,10 +287,7 @@ function cardHtml(t) {
   if (!t.need) return '';
   const lastIn = [...t.hist].reverse().find(m => m.d === 'in');
   let h = `<div class="card"><div class="card-h">🤖 返信案${t.dts ? '（' + (new Date(t.dts).toDateString() === new Date().toDateString() ? '' : fmt(t.dts) + ' ') + hm(t.dts) + '）' : ''}</div>`;
-  // 自分が最後に送ってから届いた相手の文を、カードの中にまとめて出す(スクロールしても見える)
-  const ins = [];
-  for (let i = t.hist.length - 1; i >= 0 && ins.length < 4; i--) { const m = t.hist[i]; if (m.d !== 'in') { if (ins.length) break; continue; } ins.unshift(m); }
-  if (ins.length) h += '<div class="card-in">' + ins.map(m => `<div class="ci"><span class="cit">${hm(m.t)}</span>${esc(m.x.slice(0, 200))}</div>`).join('') + '</div>';
+  // 相手の文はやりとりに出ているので、カードには出さない(2026-11-10 オーナー指示)
   if (t.drafting) return h + '<div class="note">AIが返信案を作っています（Macが動いていれば1〜2分）</div></div>';
   // 目的とメモは出さない(2026-11-10 オーナー指示)
   const msgs = t.dmsgs || [];
