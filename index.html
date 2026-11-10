@@ -61,7 +61,12 @@
   .card { border:2px solid var(--draft); border-radius:16px; padding:12px 14px; margin:16px 0 6px; background:#fbfbfb; }
   .card-h { font-weight:800; font-size:15px; color:#444; }
   .card-q { font-size:13px; color:var(--sub); margin-top:6px; line-height:1.5; }
-  .purpose { background:#e9f6ea; color:#2f7a3b; font-weight:800; border-radius:10px; padding:9px 11px; margin-top:10px; font-size:14.5px; line-height:1.5; }
+  .purpose { background:#e9f6ea; color:#2f7a3b; font-weight:800; border-radius:10px; padding:7px 11px; margin-top:8px; font-size:13.5px; line-height:1.5; }
+  .card-in { background:#f1f1f1; border-radius:12px; padding:8px 11px; margin-top:8px; }
+  .ci { font-size:15px; line-height:1.5; color:#222; white-space:pre-wrap; padding:2px 0; }
+  .cit { font-size:11px; color:var(--sub); margin-right:6px; }
+  .note.shut { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .more { font-size:12.5px; color:#7a5200; margin-top:3px; text-align:right; }
   .note { background:#fff6dd; color:#7a5200; border-radius:10px; padding:8px 11px; margin-top:8px; font-size:13.5px; line-height:1.5; }
   .nth { font-size:12px; color:var(--sub); margin-top:12px; }
   .mtext { white-space:pre-wrap; line-height:1.6; font-size:15.5px; margin-top:3px; }
@@ -222,7 +227,7 @@ function renderList() {
 
 // ---------- やりとり ----------
 function openThread(uid, quiet) {
-  if (CUR !== uid) { editing = false; document.getElementById('tText').value = ''; }
+  if (CUR !== uid) { editing = false; noteOpen = false; document.getElementById('tText').value = ''; }
   CUR = uid;
   if (location.hash !== '#' + uid) history.pushState(null, '', '#' + uid);
   document.getElementById('list').style.display = 'none';
@@ -256,14 +261,18 @@ function render() {
   if (atBottom || !editing) box.scrollTop = box.scrollHeight;
 }
 
+let noteOpen = false;
 function cardHtml(t) {
   if (!t.need) return '';
   const lastIn = [...t.hist].reverse().find(m => m.d === 'in');
   let h = `<div class="card"><div class="card-h">🤖 返信案${t.dts ? '（' + (new Date(t.dts).toDateString() === new Date().toDateString() ? '' : fmt(t.dts) + ' ') + hm(t.dts) + '）' : ''}</div>`;
-  if (lastIn) h += `<div class="card-q">相手: ${esc(lastIn.x.slice(0, 120))}</div>`;
+  // 自分が最後に送ってから届いた相手の文を、カードの中にまとめて出す(スクロールしても見える)
+  const ins = [];
+  for (let i = t.hist.length - 1; i >= 0 && ins.length < 4; i--) { const m = t.hist[i]; if (m.d !== 'in') { if (ins.length) break; continue; } ins.unshift(m); }
+  if (ins.length) h += '<div class="card-in">' + ins.map(m => `<div class="ci"><span class="cit">${hm(m.t)}</span>${esc(m.x.slice(0, 200))}</div>`).join('') + '</div>';
   if (t.drafting) return h + '<div class="note">AIが返信案を作っています（Macが動いていれば1〜2分）</div></div>';
   if (t.purpose) h += `<div class="purpose">🎯 目的: ${esc(t.purpose)}</div>`;
-  if (t.note) h += `<div class="note">📝 ${esc(t.note)}</div>`;
+  if (t.note) h += `<div class="note${noteOpen ? '' : ' shut'}" onclick="noteOpen=!noteOpen;render()">📝 ${esc(t.note)}</div>` + (noteOpen ? '' : '<div class="more" onclick="noteOpen=true;render()">メモを全部見る ▾</div>');
   const msgs = t.dmsgs || [];
   if (!msgs.length && !editing) {
     h += '<div class="card-q" style="margin-top:10px">送る文はありません（返事は不要そう）。必要なら「修正」で書けます。</div>';
