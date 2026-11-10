@@ -156,6 +156,9 @@
   .st-judge { background:#fff4d6; color:#9a6a00; }
   .jt { font-weight:700; } .j-big { background:#1b73e8 !important; color:#fff !important; } .j-yes { background:var(--lg) !important; color:#fff !important; }
   .j-no { background:#9a9a9a !important; color:#fff !important; } .j-ban { background:#e53935 !important; color:#fff !important; }
+  .modeb { flex:none; border:none; border-radius:16px; padding:6px 12px; font-size:13px; font-weight:800; margin-right:6px; }
+  .modeb.auto { background:#06c755; color:#fff; } .modeb.manual { background:#ff9f0a; color:#fff; }
+  .t-manual { background:#fff1dc; color:#b86a00; }
   .infob { flex:none; border:1px solid #ddd; background:#fff; border-radius:16px; padding:5px 12px; font-size:13px; font-weight:700; color:#333; }
   .jbar { display:none; background:#fffbe8; border-bottom:1px solid #f0e2b0; padding:10px 12px; }
   .jq { font-size:13.5px; font-weight:700; margin-bottom:8px; color:#6b5200; }
@@ -205,6 +208,7 @@
       <div class="nm" id="tName"></div>
       <div class="ln" id="tLn"></div>
     </div>
+    <button class="modeb" id="tMode" onclick="toggleMode()"></button>
     <button class="infob" onclick="openProf()">情報</button>
   </div>
   <div class="jbar" id="tJudge"></div>
@@ -321,7 +325,7 @@ function rowHtml(r) {
           ${r.today ? '<span class="tag t-today">🟢 本日出勤</span>' : r.dates ? '<span class="tag t-dates">📅 ' + esc(r.dates) + '</span>' : ''}
           ${r.needJudge ? '<span class="st st-judge">⭐ 判定まだ</span>' : ''}${r.judge ? judgeTag(r.judge) : ''}
           ${r.info ? '<span class="tag t-info">' + esc(r.info) + '</span>' : ''}
-          <span class="tag t-gray">${esc(r.stage)}</span>
+          ${r.mode === 'manual' ? '<span class="tag t-manual">✋ 手動</span>' : ''}<span class="tag t-gray">${esc(r.stage)}</span>
         </div>
       </div>
     </div>`;
@@ -341,6 +345,22 @@ function renderJudgeBar() {
   el.style.display = 'block';
   el.innerHTML = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
 }
+// 自動・手動の切りかえ(ワンタップ)
+function curMode() { const rw = curRow(); return (rw && rw.mode) || (T && T.mode) || 'auto'; }
+function renderMode() {
+  const el = document.getElementById('tMode'), m = curMode();
+  el.className = 'modeb ' + m; el.textContent = m === 'manual' ? '✋ 手動' : '🤖 自動';
+}
+async function toggleMode() {
+  const rw = curRow(); if (!rw || modeBusy) return;
+  const to = curMode() === 'manual' ? 'auto' : 'manual', before = rw.mode;
+  modeBusy = true; rw.mode = to; if (T) T.mode = to; renderMode();
+  toast(to === 'manual' ? '手動にしました（ボットは返しません）' : '自動にしました（次に相手から来たらボットが返します）', 3000);
+  try { const r = await call('ibxSetMode', rw.user, to); rw.mode = r.mode; rw.stage = r.stage; if (T) { T.mode = r.mode; T.stage = r.stage; } if (CUR === rw.user) render(); cachePut('list', DATA); }
+  catch (e) { rw.mode = before; if (T) T.mode = before; renderMode(); toast('切りかえられませんでした: ' + e.message, 4000); }
+  finally { modeBusy = false; }
+}
+let modeBusy = false;
 async function setJudge(j) {
   const rw = curRow(); if (!rw) return;
   if (j === '出禁' && !confirm(rw.name + ' を出禁にしますか？')) return;
@@ -390,7 +410,7 @@ function render() {
   document.getElementById('tName').textContent = t.name;
   const rw = curRow();
   document.getElementById('tLn').textContent = (rw && rw.info ? rw.info + '　' : '') + (t.ln ? 'LINE名: ' + t.ln : '');
-  renderJudgeBar();
+  renderJudgeBar(); renderMode();
   const d = t.data || {};
   document.getElementById('tChips').innerHTML = (t.today ? '<span class="tag t-today">🟢 本日出勤</span>' : t.dates ? '<span class="tag t-dates">📅 ' + esc(t.dates) + '</span>' : '') + '<span class="tag t-purple">' + esc(t.stage) + '</span>' +
     Object.keys(d).filter(k => d[k]).map(k => '<span class="tag t-gray">' + esc(k) + ': ' + esc(d[k]) + '</span>').join('');
@@ -560,7 +580,9 @@ async function rgDecide(key, send) {
 
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
-setInterval(() => { if (!document.hidden && !editing && !busy) loadAll(); }, 15000);
+setInterval(() => { if (!document.hidden && !editing && !busy && !modeBusy) loadAll(); }, 4000); // 4秒ごとに最新に
+window.addEventListener('focus', () => loadAll());
+window.addEventListener('pageshow', () => loadAll());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll(); }); // アプリに戻ったらすぐ最新に
 if (OPEN_USER) openThread(OPEN_USER);
 else if (location.hash === '#guide') openGuide();
