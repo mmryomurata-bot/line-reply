@@ -292,8 +292,7 @@ function cardHtml(t) {
   for (let i = t.hist.length - 1; i >= 0 && ins.length < 4; i--) { const m = t.hist[i]; if (m.d !== 'in') { if (ins.length) break; continue; } ins.unshift(m); }
   if (ins.length) h += '<div class="card-in">' + ins.map(m => `<div class="ci"><span class="cit">${hm(m.t)}</span>${esc(m.x.slice(0, 200))}</div>`).join('') + '</div>';
   if (t.drafting) return h + '<div class="note">AIが返信案を作っています（Macが動いていれば1〜2分）</div></div>';
-  if (t.purpose) h += `<div class="purpose">🎯 目的: ${esc(t.purpose)}</div>`;
-  if (t.note) h += `<div class="note${noteOpen ? '' : ' shut'}" onclick="noteOpen=!noteOpen;render()">📝 ${esc(t.note)}</div>` + (noteOpen ? '' : '<div class="more" onclick="noteOpen=true;render()">メモを全部見る ▾</div>');
+  // 目的とメモは出さない(2026-11-10 オーナー指示)
   const msgs = t.dmsgs || [];
   if (!msgs.length && !editing) {
     h += '<div class="card-q" style="margin-top:10px">送る文はありません（返事は不要そう）。必要なら「修正」で書けます。</div>';
