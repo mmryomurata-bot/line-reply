@@ -149,6 +149,31 @@
   .composer { border-top:1px solid #e3e3e3; }
   .composer textarea { background:#f2f3f5; border:0; border-radius:20px; }
   .sendb { color:var(--lg); }
+
+  /* 女の子の情報・判定 */
+  .tabs button { font-size:13px; }
+  .t-info { background:#fff; color:#555; border-color:#e2e2e2; }
+  .st-judge { background:#fff4d6; color:#9a6a00; }
+  .jt { font-weight:700; } .j-big { background:#1b73e8 !important; color:#fff !important; } .j-yes { background:var(--lg) !important; color:#fff !important; }
+  .j-no { background:#9a9a9a !important; color:#fff !important; } .j-ban { background:#e53935 !important; color:#fff !important; }
+  .infob { flex:none; border:1px solid #ddd; background:#fff; border-radius:16px; padding:5px 12px; font-size:13px; font-weight:700; color:#333; }
+  .jbar { display:none; background:#fffbe8; border-bottom:1px solid #f0e2b0; padding:10px 12px; }
+  .jq { font-size:13.5px; font-weight:700; margin-bottom:8px; color:#6b5200; }
+  .jbs { display:flex; gap:6px; flex-wrap:wrap; }
+  .jb { flex:1; min-width:70px; padding:10px 4px; border-radius:12px; border:0; font-size:14px; font-weight:800; opacity:.9; }
+  .jbs .jb:not(.on) { filter:saturate(.85); }
+  .psheet .jb:not(.on) { background:#f2f3f5 !important; color:#555 !important; }
+  .jb.on { box-shadow:0 0 0 3px rgba(0,0,0,.18) inset; opacity:1; }
+  .prof { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:30; align-items:flex-end; justify-content:center; }
+  .psheet { background:#fff; width:100%; max-width:640px; max-height:88vh; overflow-y:auto; border-radius:18px 18px 0 0; padding:14px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .ph { display:flex; align-items:center; justify-content:space-between; font-size:17px; margin-bottom:10px; }
+  .pclose { border:0; background:#f2f3f5; width:34px; height:34px; border-radius:50%; font-size:20px; }
+  .pph { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; } .pph img { height:190px; border-radius:10px; display:block; }
+  .psec { font-size:12.5px; font-weight:800; color:#8c8c8c; margin:16px 0 6px; }
+  .pr { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid #f2f2f2; font-size:14.5px; }
+  .pk { width:96px; flex:none; color:#8c8c8c; font-size:13px; padding-top:1px; } .pv2 { flex:1; white-space:pre-wrap; word-break:break-word; line-height:1.5; }
+  .pnote { color:#9a9a9a; font-size:13px; padding:6px 0; }
+  .plink { display:block; margin-top:14px; color:#1b73e8; font-weight:700; text-decoration:none; }
 </style>
 </head>
 <body>
@@ -160,6 +185,7 @@
     <div class="tabs" id="tabs">
       <button data-f="need" onclick="setFilter('need')">要返信</button>
       <button data-f="today" onclick="setFilter('today')">本日出勤</button>
+      <button data-f="judge" onclick="setFilter('judge')">判定</button>
       <button data-f="all" onclick="setFilter('all')">すべて</button>
     </div>
   </header>
@@ -174,12 +200,14 @@
 <div id="thread">
   <div class="th-head">
     <button class="back" onclick="closeThread()">‹</button>
-    <div class="av" id="tAv"></div>
-    <div style="min-width:0;flex:1">
+    <div class="av" id="tAv" onclick="openProf()"></div>
+    <div style="min-width:0;flex:1" onclick="openProf()">
       <div class="nm" id="tName"></div>
       <div class="ln" id="tLn"></div>
     </div>
+    <button class="infob" onclick="openProf()">情報</button>
   </div>
+  <div class="jbar" id="tJudge"></div>
   <div class="chips" id="tChips"></div>
   <div class="msgs" id="tMsgs"></div>
   <div class="composer">
@@ -188,6 +216,7 @@
     <button class="sendb" onclick="sendFree()">➤</button>
   </div>
 </div>
+<div class="prof" id="prof" onclick="if(event.target===this)closeProf()"><div class="psheet" id="pBody"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -249,8 +278,8 @@ function renderList() {
   if (!DATA) return;
   const q = document.getElementById('q').value.trim();
   const rows = DATA.rows.filter(r => (!q || (r.name + r.ln + r.last).indexOf(q) !== -1)
-    && (FILTER === 'all' || (FILTER === 'need' && r.need) || (FILTER === 'today' && r.today)));
-  const cnt = { need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length };
+    && (FILTER === 'all' || (FILTER === 'need' && r.need) || (FILTER === 'today' && r.today) || (FILTER === 'judge' && r.needJudge)));
+  const cnt = { judge: DATA.rows.filter(r => r.needJudge).length, need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length };
   document.querySelectorAll('#tabs button').forEach(b => {
     b.classList.toggle('on', b.dataset.f === FILTER);
     b.innerHTML = b.textContent.replace(/\d+$/, '').trim() + '<span class="n">' + cnt[b.dataset.f] + '</span>';
@@ -267,8 +296,8 @@ function renderList() {
   const rest = rows.filter(r => !r.need);
   const sec = (title, list) => list.length ? '<div class="sec">' + title + '<span>' + list.length + '</span></div>' + list.map(rowHtml).join('') : '';
   document.getElementById('rows').innerHTML = rows.length
-    ? (FILTER === 'need' ? wait.map(rowHtml).join('') : sec('返事待ち', wait) + sec(FILTER === 'today' ? '本日出勤' : 'その他', rest))
-    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'today' ? '本日出勤の人はいません' : 'まだやりとりがありません') + '</div>';
+    ? (FILTER === 'need' || FILTER === 'judge' ? (FILTER === 'judge' ? rows : wait).map(rowHtml).join('') : sec('返事待ち', wait) + sec(FILTER === 'today' ? '本日出勤' : 'その他', rest))
+    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '本日出勤の人はいません' : 'まだやりとりがありません') + '</div>';
   document.querySelectorAll('#rows .av').forEach(el => avatar(el, el.dataset.pic, el.dataset.nm));
 }
 
@@ -290,10 +319,56 @@ function rowHtml(r) {
         <div class="pv">${who}${esc(r.last)}</div>
         <div class="tags">${st}
           ${r.today ? '<span class="tag t-today">🟢 本日出勤</span>' : r.dates ? '<span class="tag t-dates">📅 ' + esc(r.dates) + '</span>' : ''}
+          ${r.needJudge ? '<span class="st st-judge">⭐ 判定まだ</span>' : ''}${r.judge ? judgeTag(r.judge) : ''}
+          ${r.info ? '<span class="tag t-info">' + esc(r.info) + '</span>' : ''}
           <span class="tag t-gray">${esc(r.stage)}</span>
         </div>
       </div>
     </div>`;
+}
+
+
+// ---------- 女の子の情報・判定 ----------
+const JUDGES = [['リピ大あり', 'j-big'], ['リピあり', 'j-yes'], ['リピなし', 'j-no'], ['出禁', 'j-ban']];
+function judgeTag(j) { const c = (JUDGES.find(x => x[0] === j) || [])[1] || ''; return '<span class="tag jt ' + c + '">' + esc(j) + '</span>'; }
+function curRow() { return DATA && CUR ? DATA.rows.find(r => r.user === CUR) : null; }
+function judgeBtns(cur) {
+  return JUDGES.map(x => `<button class="jb ${x[1]}${cur === x[0] ? ' on' : ''}" onclick="setJudge('${x[0]}')">${x[0]}</button>`).join('');
+}
+function renderJudgeBar() {
+  const rw = curRow(), el = document.getElementById('tJudge');
+  if (!rw || !rw.needJudge) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
+}
+async function setJudge(j) {
+  const rw = curRow(); if (!rw) return;
+  if (j === '出禁' && !confirm(rw.name + ' を出禁にしますか？')) return;
+  if (rw.judge === j) j = ''; // 同じのをもう一度押したら外す
+  const before = { judge: rw.judge, needJudge: rw.needJudge };
+  rw.judge = j; rw.needJudge = false;
+  renderJudgeBar(); if (document.getElementById('prof').style.display === 'flex') renderProf(); toast(j ? '「' + j + '」にしました' : '判定を外しました');
+  try { await call('ibxJudge', rw.user, j); cachePut('list', DATA); }
+  catch (e) { Object.assign(rw, before); renderJudgeBar(); toast('保存できませんでした: ' + e.message, 4000); }
+}
+let PHOTOS = {};
+function openProf() {
+  if (!T) return;
+  document.getElementById('prof').style.display = 'flex';
+  renderProf();
+  if (!PHOTOS[CUR]) { const u = CUR; PHOTOS[u] = 'loading'; call('ibxPhotos', u).then(r => { PHOTOS[u] = r.photos || []; if (CUR === u) renderProf(); }).catch(() => { PHOTOS[u] = []; if (CUR === u) renderProf(); }); }
+}
+function closeProf() { document.getElementById('prof').style.display = 'none'; }
+function renderProf() {
+  const t = T, rw = curRow() || {};
+  const ph = PHOTOS[CUR];
+  const photos = ph === 'loading' ? '<div class="pnote">写真を読み込み中…</div>' : ph && ph.length ? '<div class="pph">' + ph.map(u => `<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" loading="lazy"></a>`).join('') + '</div>' : '<div class="pnote">写真はまだありません</div>';
+  const rows = (t.prof || []).map(x => `<div class="pr"><div class="pk">${esc(x[0])}</div><div class="pv2">${esc(x[1])}</div></div>`).join('') || '<div class="pnote">台帳の情報がありません</div>';
+  document.getElementById('pBody').innerHTML = `<div class="ph"><b>${esc(t.name)}</b><button class="pclose" onclick="closeProf()">×</button></div>
+    ${photos}
+    <div class="psec">判定</div><div class="jbs">${judgeBtns(rw.judge || '')}</div>
+    <div class="psec">情報</div>${rows}
+    ${t.drive ? `<a class="plink" href="${esc(t.drive)}" target="_blank">Driveのフォルダを開く ›</a>` : ''}`;
 }
 
 // ---------- やりとり ----------
@@ -313,7 +388,9 @@ function render() {
   const t = T;
   avatar(document.getElementById('tAv'), t.pic, t.name);
   document.getElementById('tName').textContent = t.name;
-  document.getElementById('tLn').textContent = t.ln ? 'LINE名: ' + t.ln : '';
+  const rw = curRow();
+  document.getElementById('tLn').textContent = (rw && rw.info ? rw.info + '　' : '') + (t.ln ? 'LINE名: ' + t.ln : '');
+  renderJudgeBar();
   const d = t.data || {};
   document.getElementById('tChips').innerHTML = (t.today ? '<span class="tag t-today">🟢 本日出勤</span>' : t.dates ? '<span class="tag t-dates">📅 ' + esc(t.dates) + '</span>' : '') + '<span class="tag t-purple">' + esc(t.stage) + '</span>' +
     Object.keys(d).filter(k => d[k]).map(k => '<span class="tag t-gray">' + esc(k) + ': ' + esc(d[k]) + '</span>').join('');
@@ -436,6 +513,7 @@ async function copyDraft() {
 }
 
 function closeThread() {
+  closeProf();
   CUR = null; editing = false; clearTimeout(timer);
   document.getElementById('thread').style.display = 'none';
   document.getElementById('list').style.display = 'block';
