@@ -323,7 +323,7 @@ function renderList() {
   const working = DATA.rows.filter(r => r.today);
   const todayHtml = working.length ? '<div class="summary" style="background:#eaf7ee;border-color:#bfe3c8;color:#1f6b3a"><b>🟢 本日出勤 ' + working.length + '人</b><br>' + working.map(r => esc(r.name)).join('、') + '</div>' : '';
   const rgHtml = '<div class="rgbar" onclick="openGuide()">🏠 ルーム案内' + (DATA.rgWait ? '　<span style="color:#c0392b">確認待ち ' + DATA.rgWait + '人</span>' : '') + '　›</div>';
-  document.getElementById('summary').innerHTML = rgHtml + todayHtml; // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
+  document.getElementById('summary').innerHTML = todayHtml; // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
   // 返事待ち → 本日出勤 → その他 の順に区切って出す。返事待ちは待っている時間の長い順
   const wait = rows.filter(r => r.need).sort((x, y) => x.ts - y.ts);
   const rest = rows.filter(r => !r.need);
