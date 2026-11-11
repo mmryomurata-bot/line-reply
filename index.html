@@ -156,7 +156,8 @@
   /* 女の子の情報・判定 */
   .tabs button { font-size:13px; }
   /* タブの件数は色つきの丸。0件のタブは薄くする(2026-11-11 オーナー了承) */
-  .tabs button { display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap; }
+  /* 件数はタブ名の真上に乗せる(左右どちらの数か迷わないように。2026-11-11 オーナー指示) */
+  .tabs button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; white-space:nowrap; padding:7px 0 7px; }
   .tabs button .n { display:inline-block; min-width:19px; height:19px; line-height:19px; padding:0 5px; border-radius:10px; font-size:11.5px; font-weight:800; color:#fff; margin-left:0; box-sizing:border-box; }
   .tabs .c-red .n { background:#ff3b30; } .tabs .c-org .n { background:#ff9500; } .tabs .c-yel .n { background:#f5b800; }
   .tabs .c-grn .n { background:#06c755; } .tabs .c-gry .n { background:#b8b8b8; }
@@ -327,7 +328,7 @@ function renderList() {
     b.classList.toggle('on', b.dataset.f === FILTER);
     const n = cnt[b.dataset.f];
     b.classList.toggle('zero', !n);
-    b.innerHTML = b.dataset.l + (n ? '<span class="n">' + (n > 99 ? '99+' : n) + '</span>' : '');
+    b.innerHTML = '<span class="n">' + (n > 99 ? '99+' : n) + '</span>' + b.dataset.l;
   });
   document.getElementById('cnt').textContent = DATA.rows.length;
   const need = DATA.rows.filter(r => r.need);
