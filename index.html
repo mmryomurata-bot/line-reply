@@ -156,6 +156,13 @@
   .st-judge { background:#fff4d6; color:#9a6a00; }
   .jt { font-weight:700; } .j-big { background:#1b73e8 !important; color:#fff !important; } .j-yes { background:var(--lg) !important; color:#fff !important; }
   .j-no { background:#9a9a9a !important; color:#fff !important; } .j-ban { background:#e53935 !important; color:#fff !important; }
+  .b.media { background:transparent !important; padding:0 !important; box-shadow:none !important; }
+  .b.media .stk { width:120px; height:auto; display:block; }
+  .b.media .pic { max-width:200px; max-height:260px; border-radius:14px; display:block; background:#ddd; min-width:80px; min-height:80px; object-fit:cover; }
+  .bigimg { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:99; display:flex; align-items:center; justify-content:center; }
+  .bigimg img { max-width:100%; max-height:100%; }
+  .freeb { display:inline-block; background:#06c755; color:#fff; font-weight:800; border-radius:12px; padding:2px 9px; font-size:12px; }
+  .freeb.low { background:#ff3b30; }
   .modeb { flex:none; border:none; border-radius:16px; padding:6px 12px; font-size:13px; font-weight:800; margin-right:6px; }
   .modeb.auto { background:#06c755; color:#fff; } .modeb.manual { background:#ff9f0a; color:#fff; }
   .t-manual { background:#fff1dc; color:#b86a00; }
@@ -324,7 +331,7 @@ function rowHtml(r) {
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
           ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}</div>
         <div class="pv">${who}${esc(r.last)}</div>
-        <div class="tags">${st}
+        <div class="tags">${freeBadge(r.rt)}${st}
           ${r.today ? '<span class="tag t-today">🟢 本日出勤</span>' : r.dates ? '<span class="tag t-dates">📅 ' + esc(r.dates) + '</span>' : ''}
           ${r.needJudge ? '<span class="st st-judge">⭐ 判定まだ</span>' : ''}${r.judge ? judgeTag(r.judge) : ''}
           ${r.info ? '<span class="tag t-info">' + esc(r.info) + '</span>' : ''}
@@ -348,6 +355,35 @@ function renderJudgeBar() {
   el.style.display = 'block';
   el.innerHTML = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
 }
+// スタンプ・画像の吹き出し
+const IMG = {};
+function bubble(m) {
+  if (m.s) return `<div class="b media"><img class="stk" src="https://stickershop.line-scdn.net/stickershop/v1/sticker/${encodeURIComponent(m.s)}/android/sticker.png" alt="スタンプ" onerror="this.parentNode.textContent='［スタンプ］'"></div>`;
+  if (m.u) return `<div class="b media"><img class="pic" src="${esc(m.u)}" onclick="bigImg(this.src)" alt="写真"></div>`;
+  if (m.i) return `<div class="b media"><img class="pic" data-img="${esc(m.i)}" src="${IMG[m.i] && IMG[m.i].startsWith('data:') ? IMG[m.i] : ''}" onclick="bigImg(this.src)" alt="写真"></div>`;
+  return `<div class="b">${esc(m.x)}</div>`;
+}
+function loadImgs() {
+  document.querySelectorAll('img[data-img]').forEach(el => {
+    const id = el.dataset.img;
+    if (IMG[id] === 'x') { el.parentNode.textContent = '［写真（期限切れで表示できません）］'; return; }
+    if (IMG[id] === 'loading') return;
+    if (IMG[id]) { if (!el.getAttribute('src')) el.src = IMG[id]; return; }
+    IMG[id] = 'loading';
+    call('ibxImg', id).then(r => { IMG[id] = r.ok ? r.src : 'x'; loadImgs(); }).catch(() => { delete IMG[id]; });
+  });
+}
+function bigImg(src) { if (!src) return; const o = document.createElement('div'); o.className = 'bigimg'; o.innerHTML = '<img src="' + src + '">'; o.onclick = () => o.remove(); document.body.appendChild(o); }
+// 無料で返せる残り秒数(届いてから50秒。1秒ずつ減らす)
+const FREE_SEC = 50;
+function freeLeft(ts) { return ts ? Math.floor(FREE_SEC - (Date.now() - ts) / 1000) : 0; }
+function freeBadge(ts) { const l = freeLeft(ts); return l > 0 ? `<span class="freeb${l <= 15 ? ' low' : ''}" data-rt="${ts}">⚡無料 あと${l}秒</span> ` : ''; }
+setInterval(() => {
+  document.querySelectorAll('.freeb').forEach(el => {
+    const l = freeLeft(+el.dataset.rt);
+    if (l <= 0) el.remove(); else { el.textContent = '⚡無料 あと' + l + '秒'; el.classList.toggle('low', l <= 15); }
+  });
+}, 1000);
 // 自動・手動の切りかえ(ワンタップ)
 function curMode() { const rw = curRow(); return (rw && rw.mode) || (T && T.mode) || 'auto'; }
 function renderMode() {
@@ -415,7 +451,7 @@ function render() {
   document.getElementById('tLn').textContent = (rw && rw.info ? rw.info + '　' : '') + (t.ln ? 'LINE名: ' + t.ln : '');
   renderJudgeBar(); renderMode();
   const d = t.data || {};
-  document.getElementById('tChips').innerHTML = (t.today ? '<span class="tag t-today">🟢 本日出勤</span>' : t.dates ? '<span class="tag t-dates">📅 ' + esc(t.dates) + '</span>' : '') + '<span class="tag t-purple">' + esc(t.stage) + '</span>' +
+  document.getElementById('tChips').innerHTML = freeBadge((curRow() || {}).rt) + (t.today ? '<span class="tag t-today">🟢 本日出勤</span>' : t.dates ? '<span class="tag t-dates">📅 ' + esc(t.dates) + '</span>' : '') + '<span class="tag t-purple">' + esc(t.stage) + '</span>' +
     Object.keys(d).filter(k => d[k]).map(k => '<span class="tag t-gray">' + esc(k) + ': ' + esc(d[k]) + '</span>').join('');
   let html = '', lastDay = '';
   if (!t.hist.length) html += '<div class="empty">このページを作る前のやりとりは出ません</div>';
@@ -423,12 +459,13 @@ function render() {
     const dl = dayLabel(m.t);
     if (dl !== lastDay) { html += '<div class="day">' + dl + '</div>'; lastDay = dl; }
     const side = m.d === 'in' ? 'l' : 'r' + (m.d === 'bot' ? ' bot' : '');
-    html += `<div class="bl ${side}"${m.pending ? ' style="opacity:.55"' : ''}><div class="b">${esc(m.x)}</div><div class="bt">${m.d === 'bot' ? 'ボット<br>' : ''}${m.pending ? '送信中' : hm(m.t)}</div></div>`;
+    html += `<div class="bl ${side}"${m.pending ? ' style="opacity:.55"' : ''}>${bubble(m)}<div class="bt">${m.d === 'bot' ? 'ボット<br>' : ''}${m.pending ? '送信中' : hm(m.t)}</div></div>`;
   });
   html += cardHtml(t);
   const box = document.getElementById('tMsgs');
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   box.innerHTML = html;
+  loadImgs();
   if (atBottom || !editing) box.scrollTop = box.scrollHeight;
 }
 
