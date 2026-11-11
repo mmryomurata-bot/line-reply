@@ -293,7 +293,7 @@
   <div class="quick">
     <span id="tFree" class="qfree"></span>
     <button id="qResume" class="qres" onclick="resumeAsk()" style="display:none"></button>
-    <button id="qOff" class="qoff" onclick="offOpen()" style="display:none">出勤取り消し</button>
+    <button id="qOff" class="qoff" onclick="offOpen()" style="display:none">休み・早退</button>
     <button onclick="quickSend('お願いします！')">お願いします！</button>
     <button onclick="quickSend(BOW)"><img src="https://stickershop.line-scdn.net/stickershop/v1/sticker/52002739/android/sticker.png" alt="">ペコリ</button>
   </div>
@@ -306,6 +306,7 @@
 <div class="prof" id="prof"><div class="th-head lh"><button class="back" onclick="closeProf()">‹</button><div class="ttl"><span class="nm">情報</span></div></div><div class="psheet" id="pBody"></div></div>
 <div class="offs" id="offs" onclick="if(event.target===this)offClose()"><div class="offbox">
   <div class="offt" id="offT"></div>
+  <button class="offb" onclick="offDo('early')"><b>早退</b><span>今の時刻を台帳の備考に記録し、今日の出勤中から外します。明日からの出勤はそのまま</span></button>
   <button class="offb" onclick="offDo('today')"><b>今日だけ休み</b><span>出勤中から外し、台帳の備考に記録します。明日からの出勤はそのまま</span></button>
   <button class="offb red" onclick="offDo('all')"><b>残りも全部なし</b><span>台帳を「未出勤」にします。ルーム案内・出勤確認も止まります</span></button>
   <div class="offn">カレンダーとキャスカンのシフトは変わりません</div>
@@ -582,7 +583,7 @@ function renderMode() {
   else b.style.display = 'none';
 }
 // 出勤取り消し(2026-11-12): 急に来なくなった人。今日だけ休み / 残りも全部なし
-function offOpen() { const rw = curRow(); if (!rw) return; document.getElementById('offT').textContent = rw.name + 'さんの出勤を取り消しますか？'; document.getElementById('offs').style.display = 'flex'; }
+function offOpen() { const rw = curRow(); if (!rw) return; document.getElementById('offT').textContent = rw.name + 'さん'; document.getElementById('offs').style.display = 'flex'; }
 function offClose() { document.getElementById('offs').style.display = 'none'; }
 let offBusy = false;
 async function offDo(scope) {
@@ -592,7 +593,7 @@ async function offDo(scope) {
     const r = await call('ibxCancelWork', rw.user, scope);
     if (!r.ok) { toast('できませんでした: ' + r.reason, 4500); return; }
     rw.today = false; if (T) T.today = false; render(); loadAll();
-    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : '今日は休みにしました', 3500);
+    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : scope === 'early' ? '早退を記録しました（' + (r.at || '') + '）' : '今日は休みにしました', 3500);
   } catch (e) { toast('できませんでした: ' + e.message, 4500); }
   finally { offBusy = false; }
 }
