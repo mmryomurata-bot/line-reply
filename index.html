@@ -580,7 +580,16 @@ async function rgDecide(key, send) {
 
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
-setInterval(() => { if (!document.hidden && !editing && !busy && !modeBusy) loadAll(); }, 4000); // 4秒ごとに最新に
+// 2秒ごとに「変わった？」だけ軽く聞いて、変わっていたらすぐ全部読む。念のため15秒ごとにも全部読む
+let VER = null, lastFull = Date.now(), verBusy = false;
+setInterval(async () => {
+  if (document.hidden || verBusy) return;
+  verBusy = true;
+  try {
+    const v = await call('ibxVer');
+    if ((v !== VER || Date.now() - lastFull > 15000) && !editing && !busy && !modeBusy) { VER = v; lastFull = Date.now(); await loadAll(); }
+  } catch (e) {} finally { verBusy = false; }
+}, 2000);
 window.addEventListener('focus', () => loadAll());
 window.addEventListener('pageshow', () => loadAll());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll(); }); // アプリに戻ったらすぐ最新に
