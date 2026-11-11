@@ -163,7 +163,11 @@
   .tabs .c-grn .n { background:#06c755; } .tabs .c-gry .n { background:#b8b8b8; }
   .tabs button.zero { opacity:.4; } .tabs button.zero .n { background:#c8c8c8; }
   .tabs button.on { opacity:1; }
-  .ptodo { display:flex; flex-wrap:wrap; align-items:center; gap:4px; width:100%; margin-bottom:2px; }
+  .ptodo { margin-top:5px; font-size:13px; font-weight:700; color:#c26a00; background:#fff6e8; border-radius:8px; padding:5px 9px; line-height:1.4; }
+  .ptodo.soon { color:#fff; background:#ff3b30; }
+  .meta { margin-top:4px; font-size:12.5px; color:#8c8c8c; line-height:1.45; }
+  .meta .dot { color:#d0d0d0; margin:0 4px; }
+  .row .tags { margin-top:5px; } .row .tags:empty { display:none; }
   .plbl { font-size:11.5px; color:#b35c00; font-weight:700; }
   .pchip { display:inline-block; background:#fff; color:#b35c00; border:1px solid #ffc978; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700; margin-right:3px; }
   .t-info { background:#fff; color:#555; border-color:#e2e2e2; }
@@ -364,12 +368,8 @@ function rowHtml(r) {
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
           ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}${r.unread ? `<span class="ub">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</div>
         <div class="pv">${who}${esc(r.last)}</div>
-        <div class="tags">${freeBadge(r.rt)}${pendTag(r.pend)}${st}
-          ${r.today ? '<span class="tag t-today">🟢 本日出勤</span>' : r.dates ? '<span class="tag t-dates">📅 ' + esc(r.dates) + '</span>' : ''}
-          ${r.needJudge ? '<span class="st st-judge">⭐ 判定まだ</span>' : ''}${r.judge ? judgeTag(r.judge) : ''}
-          ${r.info ? '<span class="tag t-info">' + esc(r.info) + '</span>' : ''}
-          ${r.mode === 'manual' ? '<span class="tag t-manual">✋ 手動</span>' : ''}<span class="tag t-gray">${esc(r.stage)}</span>
-        </div>
+        ${metaLine(r, st)}
+        ${pendTag(r.pend)}
       </div>
     </div>`;
 }
@@ -391,15 +391,24 @@ function renderJudgeBar() {
 // ワンタップで送る(2026-11-11 オーナー指示: 客が来たら「お願いします！」、オプション・預かり金額が分かったらクマのペコリ)
 const BOW = '[[sticker:11537:52002739]]';
 function quickSend(x) { doSend([x], false); }
+// 一覧の3行目：色つきの札は「無料・案あり・判定・手動」だけ。日程・プロフィール・段階はグレーの文字で1行に(2026-11-11 オーナー指示：ごちゃごちゃを整理)
+function metaLine(r, st) {
+  const badges = freeBadge(r.rt) + st
+    + (r.needJudge ? '<span class="st st-judge">⭐ 判定まだ</span>' : '') + (r.judge ? judgeTag(r.judge) : '')
+    + (r.mode === 'manual' ? '<span class="tag t-manual">✋ 手動</span>' : '');
+  const when = r.today ? '<b style="color:#06a84a">🟢 本日出勤</b>' : r.dates ? '📅 ' + esc(r.dates) + (r.pend && r.pend.days != null && r.pend.days > 0 ? '（あと' + r.pend.days + '日）' : '') : '';
+  // 受入れ未の人は段階(〜の返事待ち)を出さない。やることの行と同じ内容なので
+  const txt = [when, r.info ? esc(r.info) : '', r.pend ? '' : esc(r.stage || '')].filter(Boolean).join('<span class="dot">｜</span>');
+  return (badges ? '<div class="tags">' + badges + '</div>' : '') + (txt ? '<div class="meta">' + txt + '</div>' : '');
+}
 // 受け入れ体制がまだの人(オレンジの札。出勤が近いほど赤)
 function pendTag(p) {
   if (!p) return '';
-  const when = p.days == null ? '日程未定' : p.days <= 0 ? '本日〜' : 'あと' + p.days + '日';
-  // 受け入れ体制⭕️までにやることを札で出す。出勤まで2日以内は赤
-  const todo = { '時間': '出勤時間を決める', '源氏名': '源氏名を決める', '店泊': '店泊か聞く', 'インターバル': 'インターバルを聞く', '写真': '写真をもらう' };
-  return `<div class="ptodo"><span class="pend${p.days != null && p.days <= 2 ? ' soon' : ''}">受入れ⭕️まだ・出勤${when}</span>`
-    + (p.lack.length ? '<span class="plbl">やること→</span>' + p.lack.map(x => '<span class="pchip">' + esc(todo[x] || x) + '</span>').join('') : '<span class="plbl">台帳の⭕️付けだけ</span>')
-    + '</div>';
+
+  // 受け入れ体制⭕️までにやることを1行の文字で出す。出勤まで2日以内は赤
+  const todo = { '時間': '出勤時間', '源氏名': '源氏名', '店泊': '店泊', 'インターバル': 'インターバル', '写真': '写真' };
+  const soon = p.days != null && p.days <= 2;
+  return `<div class="ptodo${soon ? ' soon' : ''}">⚠️ 受入れ⭕️に足りない：${p.lack.length ? p.lack.map(x => esc(todo[x] || x)).join('・') : '台帳に⭕️を付けるだけ'}${soon ? '（出勤' + (p.days <= 0 ? '本日' : 'あと' + p.days + '日') + '）' : ''}</div>`;
 }
 // 未読の数(LINEと同じ緑の丸)。開いたら既読にして、LINEにも既読を伝える。合計はタイトルとアイコンに出す
 function totalUnread() { return DATA ? DATA.rows.reduce((a, r) => a + (r.unread || 0), 0) : 0; }
