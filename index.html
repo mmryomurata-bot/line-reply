@@ -4,8 +4,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="LINE返信">
-<title>LINE返信</title>
+<meta name="apple-mobile-web-app-title" content="エステ返信">
+<title>エステ返信</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#1877f2">
@@ -435,7 +435,7 @@ function pendTag(p) {
 function totalUnread() { return DATA ? DATA.rows.reduce((a, r) => a + (r.unread || 0), 0) : 0; }
 function updateBadge() {
   const n = totalUnread();
-  document.title = n ? '(' + n + ') LINE返信' : 'LINE返信';
+  document.title = n ? '(' + n + ') エステ返信' : 'エステ返信';
   try { if (navigator.setAppBadge) { n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } } catch (e) {}
   const b = document.getElementById('bell');
   if (b) b.style.display = ('Notification' in window && Notification.permission === 'default' && navigator.setAppBadge) ? 'inline-block' : 'none';
