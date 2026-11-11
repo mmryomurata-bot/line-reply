@@ -266,6 +266,13 @@ async function loadAll() {
     try {
       const have = {}; Object.keys(TH).forEach(u => have[u] = TH[u].sig);
       const r = await call('ibxAll', have);
+      applyAll(r);
+    } catch (e) { if (!DATA) document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+    finally { loading = null; }
+  })();
+  return loading;
+}
+function applyAll(r) {
       const keep = {}; r.rows.forEach(x => keep[x.user] = 1);
       Object.keys(TH).forEach(u => { if (!keep[u]) delete TH[u]; });
       Object.assign(TH, r.threads);
@@ -273,10 +280,6 @@ async function loadAll() {
       DATA = r; cachePut('list', DATA); cachePut('th', TH);
       if (CUR && TH[CUR] && !editing && !busy) { T = Object.assign({}, TH[CUR], { quota: DATA.quota }); render(); }
       if (!CUR || document.getElementById('list').style.display !== 'none') renderList();
-    } catch (e) { if (!DATA) document.getElementById('rows').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
-    finally { loading = null; }
-  })();
-  return loading;
 }
 function renderList() {
   if (!DATA) return;
@@ -580,16 +583,19 @@ async function rgDecide(key, send) {
 
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
-// 2秒ごとに「変わった？」だけ軽く聞いて、変わっていたらすぐ全部読む。念のため15秒ごとにも全部読む
+// 1秒ごとに「変わった？」を聞く。変わっていれば同じ返事で中身も届く(往復1回)。念のため15秒ごとにも全部読む
 let VER = null, lastFull = Date.now(), verBusy = false;
 setInterval(async () => {
-  if (document.hidden || verBusy) return;
+  if (document.hidden || verBusy || loading || editing || busy || modeBusy) return;
   verBusy = true;
   try {
-    const v = await call('ibxVer');
-    if ((v !== VER || Date.now() - lastFull > 15000) && !editing && !busy && !modeBusy) { VER = v; lastFull = Date.now(); await loadAll(); }
+    const force = Date.now() - lastFull > 15000;
+    const have = {}; Object.keys(TH).forEach(u => have[u] = TH[u].sig);
+    const r = await call('ibxPoll', force ? 'x' : VER, have);
+    VER = r.ver;
+    if (r.all && !editing && !busy && !modeBusy) { lastFull = Date.now(); applyAll(r.all); }
   } catch (e) {} finally { verBusy = false; }
-}, 2000);
+}, 1000);
 window.addEventListener('focus', () => loadAll());
 window.addEventListener('pageshow', () => loadAll());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAll(); }); // アプリに戻ったらすぐ最新に
