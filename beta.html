@@ -238,7 +238,10 @@
   .ptalk { display:block; width:100%; margin-top:22px; padding:13px 0; border:0; border-radius:12px; background:#06c755; color:#fff; font-size:15px; font-weight:800; }
   .tabs.many { overflow-x:auto; justify-content:flex-start; scrollbar-width:none; } .tabs.many::-webkit-scrollbar { display:none; }
   .tabs.many button { flex:none; padding-left:14px; padding-right:14px; }
-  .gsort { display:flex; gap:6px; padding:10px 14px 4px; }
+  .gsort { display:flex; gap:6px; padding:10px 14px 4px; overflow-x:auto; scrollbar-width:none; } .gsort::-webkit-scrollbar { display:none; }
+  .gsort button { flex:none; }
+  .av { background-position:center 18% !important; } /* パネル写真(縦長)は顔が上のほうにある */
+  .gst { font-size:12.5px; color:#333; font-weight:700; margin-top:3px; } .gst span { color:#ccc; margin:0 3px; }
   .gsort button { border:1px solid #e2e2e2; background:#fff; border-radius:16px; padding:5px 12px; font-size:12.5px; font-weight:700; color:#777; }
   .gsort button.on { background:#111; color:#fff; border-color:#111; }
   /* 下のメニュー(LINE風) */
@@ -308,8 +311,10 @@ try { FILTER = localStorage.getItem('ibxFilter2') || 'need'; } catch (e) {}
 setTimeout(() => { buildTabs(); if (DATA) renderList(); }, 0); // 下のメニューと上のタブを作る
 // 下のメニュー: トーク(やりとり) と 女性(受入れ・判定・出勤の情報) を切りかえ(2026-11-11 オーナー指示: LINEの下のメニューのように)
 // 2026-11-11 オーナー指示: トークは出勤中がいちばん左。女性は 出勤済み・未出勤・その他 を先に、受入れ未などは右へ
-const VIEWS = { talk: [['today', '出勤中', 'c-grn'], ['need', '返事待ち', 'c-red'], ['all', 'すべて', 'c-gry']],
-  girls: [['done', '出勤済み', 'c-grn'], ['noshow', '未出勤', 'c-gry'], ['other', 'その他', 'c-gry'], ['pend', '受入れ未', 'c-org'], ['judge', '判定待ち', 'c-yel'], ['today', '出勤中', 'c-grn'], ['girls', 'すべて', 'c-gry']] };
+// 同日: 受入れ未・判定待ち・すべてはトーク側へ(オーナー指示)
+const VIEWS = { talk: [['today', '出勤中', 'c-grn'], ['need', '返事待ち', 'c-red'], ['pend', '受入れ未', 'c-org'], ['judge', '判定待ち', 'c-yel'], ['all', 'すべて', 'c-gry']],
+  girls: [['done', '出勤済み', 'c-grn'], ['noshow', '未出勤', 'c-gry'], ['other', 'その他', 'c-gry']] };
+const picOf = r => (r && r.cs && r.cs.panel) || (r && r.pic) || ''; // 写真はパネル写真(キャスカン)を優先
 const OTHER_ST = ['流れ', '受け入れ不可', '日程合わず', '未出勤']; // 台帳の「未出勤」は来なかった人なのでその他へ
 const todayJ = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
 // 出勤済み: 台帳が「出勤」、または⭕️で日程が過ぎた人。未出勤: 日程がこれから(今日出勤中の人は除く)
@@ -335,10 +340,10 @@ function girlRow(r) {
   const when = r.today ? '<span class="tm" style="color:#06a84a;font-weight:700">出勤中</span>' : !r.dates && r.ld ? '<span class="tm">' + Number(r.ld.slice(5, 7)) + '/' + Number(r.ld.slice(8, 10)) + '</span>' : r.dates ? '<span class="tm">' + esc(r.dates) + '</span>' : '';
   const sub = r.pend ? pendTag(r.pend) : r.judge && ['done', 'girls'].indexOf(FILTER) !== -1 ? '<div style="margin-top:4px">' + judgeTag(r.judge) + '</div>' : r.needJudge ? '<div class="ptodo" style="background:#fff8e1;color:#9a6a00">⭐ 判定がまだです</div>' : '';
   return `<div class="row" onclick="openWoman('${r.user}')">
-      <div class="av" data-pic="${esc(r.pic)}" data-nm="${esc(r.name)}"></div>
+      <div class="av" data-pic="${esc(picOf(r))}" data-nm="${esc(r.name)}"></div>
       <div class="mid">
         <div class="top"><span class="nm">${esc(r.name)}</span>${when}</div>
-        <div class="pv">${esc(r.info || r.stage || '')}</div>${sub}
+        <div class="pv">${esc(r.info || r.stage || '')}</div>${FILTER === 'done' && r.cs ? '<div class="gst">' + (r.cs.n ? r.cs.n + '本' : '0本') + (r.cs.sv != null ? '<span>・</span>アンケート ' + r.cs.sv + '点（' + r.cs.svn + '件）' : '') + '</div>' : ''}${sub}
       </div>
     </div>`;
 }
@@ -405,7 +410,7 @@ function renderList() {
     done: DATA.rows.filter(gDone).length, noshow: DATA.rows.filter(gUpcoming).length, other: DATA.rows.filter(gOther).length };
   const bt = document.getElementById('bTalk'), bg = document.getElementById('bGirls');
   if (bt) { bt.textContent = cnt.need || ''; bt.style.display = cnt.need ? '' : 'none'; }
-  if (bg) { const g = cnt.pend; bg.textContent = g || ''; bg.style.display = g ? '' : 'none'; }
+  if (bg) bg.style.display = 'none';
   document.querySelectorAll('#tabs button').forEach(b => {
     b.classList.toggle('on', b.dataset.f === FILTER);
     const n = cnt[b.dataset.f];
@@ -427,9 +432,11 @@ function renderList() {
     const key = r => (r.pend && r.pend.start) || r.ld || '9999';
     const past = ['done', 'other'].indexOf(FILTER) !== -1; // 終わった人は新しい順、これからの人は近い順
     const byNew = (x, y) => (y.ld || '').localeCompare(x.ld || '') || y.ts - x.ts;
-    const cmp = past ? (FILTER === 'done' && GSORT === 'judge' ? (x, y) => ((JRANK[x.judge] ?? 9) - (JRANK[y.judge] ?? 9)) || byNew(x, y) : byNew)
+    const num = (r, k) => (r.cs && r.cs[k] != null ? r.cs[k] : -1);
+    const cmp = past ? (FILTER !== 'done' ? byNew : GSORT === 'judge' ? (x, y) => ((JRANK[x.judge] ?? 9) - (JRANK[y.judge] ?? 9)) || byNew(x, y)
+      : GSORT === 'count' ? (x, y) => (num(y, 'n') - num(x, 'n')) || byNew(x, y) : GSORT === 'survey' ? (x, y) => (num(y, 'sv') - num(x, 'sv')) || (num(y, 'n') - num(x, 'n')) : byNew)
       : (x, y) => key(x) < key(y) ? -1 : key(x) > key(y) ? 1 : y.ts - x.ts;
-    const sortBar = FILTER === 'done' ? '<div class="gsort">' + [['new', '新しい順'], ['judge', '判定がいい順']].map(o => `<button class="${GSORT === o[0] ? 'on' : ''}" onclick="setGSort('${o[0]}')">${o[1]}</button>`).join('') + '</div>' : '';
+    const sortBar = FILTER === 'done' ? '<div class="gsort">' + [['new', '新しい順'], ['count', '本数が多い順'], ['survey', 'アンケートがいい順'], ['judge', '判定がいい順']].map(o => `<button class="${GSORT === o[0] ? 'on' : ''}" onclick="setGSort('${o[0]}')">${o[1]}</button>`).join('') + '</div>' : '';
     document.getElementById('rows').innerHTML = rows.length ? sortBar + rows.slice().sort(cmp).map(girlRow).join('')
       : '<div class="empty">' + (FILTER === 'pend' ? '受け入れ体制が⭕️になっていない人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '出勤中の人はいません' : FILTER === 'done' ? '出勤済みの人はいません' : FILTER === 'noshow' ? '未出勤の人はいません' : 'まだいません') + '</div>';
     document.querySelectorAll('#rows .av').forEach(el => avatar(el, el.dataset.pic, el.dataset.nm));
@@ -453,11 +460,11 @@ function rowHtml(r) {
     : r.aiWait ? '<span class="st st-low">AIが返事中</span>' : '<span class="st st-low">案を作成中…</span>';
   const late = r.need && Date.now() - r.ts > 3 * 3600000;
   return `<div class="row ${r.need ? 'need' : ''}${r.unread ? ' unread' : ''}" onclick="openThread('${r.user}')">
-      <div class="av" data-pic="${esc(r.pic)}" data-nm="${esc(r.name)}"></div>
+      <div class="av" data-pic="${esc(picOf(r))}" data-nm="${esc(r.name)}"></div>
       <div class="mid">
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
           ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}${r.unread ? `<span class="ub">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</div>
-        <div class="pv">${who}${esc(r.last)}</div>
+        <div class="pv">${who}${esc(r.last)}</div>${FILTER === 'pend' ? pendTag(r.pend) : ''}
         
       </div>
     </div>`;
@@ -621,7 +628,7 @@ function renderProf() {
     <div class="psec">判定</div><div class="jbs">${judgeBtns(rw.judge || '')}</div>
     ${t.drive ? `<a class="plink" href="${esc(t.drive)}" target="_blank">Driveのフォルダを開く ›</a>` : ''}
     ${document.getElementById('thread').style.display !== 'flex' ? `<button class="ptalk" onclick="const u=CUR; closeProf(); openThread(u)">トークを開く</button>` : ''}`;
-  avatar(document.getElementById('pAv'), t.pic, t.name);
+  avatar(document.getElementById('pAv'), picOf(curRow()) || t.pic, t.name);
 }
 
 // ---------- やりとり ----------
