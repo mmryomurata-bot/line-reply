@@ -236,6 +236,11 @@
   .prof .pr { border-bottom:1px solid #f4f4f4; padding:10px 0; font-size:14.5px; }
   .prof .pk { width:88px; color:#a0a0a0; font-size:13px; }
   .ptalk { display:block; width:100%; margin-top:22px; padding:13px 0; border:0; border-radius:12px; background:#06c755; color:#fff; font-size:15px; font-weight:800; }
+  .tabs.many { overflow-x:auto; justify-content:flex-start; scrollbar-width:none; } .tabs.many::-webkit-scrollbar { display:none; }
+  .tabs.many button { flex:none; padding-left:14px; padding-right:14px; }
+  .gsort { display:flex; gap:6px; padding:10px 14px 4px; }
+  .gsort button { border:1px solid #e2e2e2; background:#fff; border-radius:16px; padding:5px 12px; font-size:12.5px; font-weight:700; color:#777; }
+  .gsort button.on { background:#111; color:#fff; border-color:#111; }
   /* 下のメニュー(LINE風) */
   #rows { padding-bottom:calc(70px + env(safe-area-inset-bottom)); }
   .bnav { position:fixed; left:0; right:0; bottom:0; z-index:20; display:flex; background:rgba(255,255,255,.97); border-top:1px solid #e6e6e6; padding:6px 0 calc(6px + env(safe-area-inset-bottom)); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
@@ -302,12 +307,24 @@ let FILTER = 'need';
 try { FILTER = localStorage.getItem('ibxFilter2') || 'need'; } catch (e) {}
 setTimeout(() => { buildTabs(); if (DATA) renderList(); }, 0); // 下のメニューと上のタブを作る
 // 下のメニュー: トーク(やりとり) と 女性(受入れ・判定・出勤の情報) を切りかえ(2026-11-11 オーナー指示: LINEの下のメニューのように)
-const VIEWS = { talk: [['need', '返事待ち', 'c-red'], ['all', 'すべて', 'c-gry']],
-  girls: [['pend', '受入れ未', 'c-org'], ['judge', '判定待ち', 'c-yel'], ['today', '出勤中', 'c-grn'], ['girls', 'すべて', 'c-gry']] };
+// 2026-11-11 オーナー指示: トークは出勤中がいちばん左。女性は 出勤済み・未出勤・その他 を先に、受入れ未などは右へ
+const VIEWS = { talk: [['today', '出勤中', 'c-grn'], ['need', '返事待ち', 'c-red'], ['all', 'すべて', 'c-gry']],
+  girls: [['done', '出勤済み', 'c-grn'], ['noshow', '未出勤', 'c-gry'], ['other', 'その他', 'c-gry'], ['pend', '受入れ未', 'c-org'], ['judge', '判定待ち', 'c-yel'], ['today', '出勤中', 'c-grn'], ['girls', 'すべて', 'c-gry']] };
+const OTHER_ST = ['流れ', '受け入れ不可', '日程合わず', '未出勤']; // 台帳の「未出勤」は来なかった人なのでその他へ
+const todayJ = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+// 出勤済み: 台帳が「出勤」、または⭕️で日程が過ぎた人。未出勤: 日程がこれから(今日出勤中の人は除く)
+function gDone(r) { return r.ls === '出勤' || (r.ls === '受け入れ体制⭕️' && !!r.ld && r.ld < todayJ()); }
+function gUpcoming(r) { return !r.today && !!r.ld && r.ld >= todayJ() && OTHER_ST.indexOf(r.ls) === -1 && r.ls !== '出勤'; }
+function gOther(r) { return OTHER_ST.indexOf(r.ls) !== -1; }
+const JRANK = { 'リピ大あり': 0, 'リピあり': 1, 'リピなし': 2, '出禁': 3 };
+let GSORT = 'new';
+try { GSORT = localStorage.getItem('ibxGSort') || 'new'; } catch (e) {}
+function setGSort(v) { GSORT = v; try { localStorage.setItem('ibxGSort', v); } catch (e) {} renderList(); }
 let VIEW = 'talk';
 try { VIEW = localStorage.getItem('ibxView') === 'girls' ? 'girls' : 'talk'; } catch (e) {}
 function buildTabs() {
   if (VIEWS[VIEW].map(x => x[0]).indexOf(FILTER) === -1) FILTER = VIEWS[VIEW][0][0];
+  document.getElementById('tabs').classList.toggle('many', VIEWS[VIEW].length > 4);
   document.getElementById('tabs').innerHTML = VIEWS[VIEW].map(x => `<button data-f="${x[0]}" data-l="${x[1]}" class="${x[2]}" onclick="setFilter('${x[0]}')">${x[1]}</button>`).join('');
   document.querySelectorAll('#bnav button').forEach(b => b.classList.toggle('on', b.dataset.v === VIEW));
   document.getElementById('vTitle').textContent = VIEW === 'talk' ? 'トーク' : '女性';
@@ -315,8 +332,8 @@ function buildTabs() {
 function setView(v) { VIEW = v; try { localStorage.setItem('ibxView', v); } catch (e) {} buildTabs(); renderList(); window.scrollTo(0, 0); }
 function isGirl(r) { return !!(r.dates || r.pend || r.info || r.judge || r.needJudge); }
 function girlRow(r) {
-  const when = r.today ? '<span class="tm" style="color:#06a84a;font-weight:700">出勤中</span>' : r.dates ? '<span class="tm">' + esc(r.dates) + '</span>' : '';
-  const sub = r.pend ? pendTag(r.pend) : r.needJudge ? '<div class="ptodo" style="background:#fff8e1;color:#9a6a00">⭐ 判定がまだです</div>' : '';
+  const when = r.today ? '<span class="tm" style="color:#06a84a;font-weight:700">出勤中</span>' : !r.dates && r.ld ? '<span class="tm">' + Number(r.ld.slice(5, 7)) + '/' + Number(r.ld.slice(8, 10)) + '</span>' : r.dates ? '<span class="tm">' + esc(r.dates) + '</span>' : '';
+  const sub = r.pend ? pendTag(r.pend) : r.judge && ['done', 'girls'].indexOf(FILTER) !== -1 ? '<div style="margin-top:4px">' + judgeTag(r.judge) + '</div>' : r.needJudge ? '<div class="ptodo" style="background:#fff8e1;color:#9a6a00">⭐ 判定がまだです</div>' : '';
   return `<div class="row" onclick="openWoman('${r.user}')">
       <div class="av" data-pic="${esc(r.pic)}" data-nm="${esc(r.name)}"></div>
       <div class="mid">
@@ -383,8 +400,9 @@ function renderList() {
   if (!DATA) return;
   const q = document.getElementById('q').value.trim();
   const rows = DATA.rows.filter(r => (!q || (r.name + r.ln + r.last).indexOf(q) !== -1)
-    && (FILTER === 'all' || (FILTER === 'girls' && isGirl(r)) || (FILTER === 'need' && r.need) || (FILTER === 'today' && r.today) || (FILTER === 'judge' && r.needJudge) || (FILTER === 'pend' && r.pend)));
-  const cnt = { pend: DATA.rows.filter(r => r.pend).length, judge: DATA.rows.filter(r => r.needJudge).length, need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length, girls: DATA.rows.filter(isGirl).length };
+    && (FILTER === 'all' || (FILTER === 'girls' && isGirl(r)) || (FILTER === 'done' && gDone(r)) || (FILTER === 'noshow' && gUpcoming(r)) || (FILTER === 'other' && gOther(r)) || (FILTER === 'need' && r.need) || (FILTER === 'today' && r.today) || (FILTER === 'judge' && r.needJudge) || (FILTER === 'pend' && r.pend)));
+  const cnt = { pend: DATA.rows.filter(r => r.pend).length, judge: DATA.rows.filter(r => r.needJudge).length, need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length, girls: DATA.rows.filter(isGirl).length,
+    done: DATA.rows.filter(gDone).length, noshow: DATA.rows.filter(gUpcoming).length, other: DATA.rows.filter(gOther).length };
   const bt = document.getElementById('bTalk'), bg = document.getElementById('bGirls');
   if (bt) { bt.textContent = cnt.need || ''; bt.style.display = cnt.need ? '' : 'none'; }
   if (bg) { const g = cnt.pend; bg.textContent = g || ''; bg.style.display = g ? '' : 'none'; }
@@ -406,9 +424,14 @@ function renderList() {
   const rest = rows.filter(r => !r.need);
   const sec = (title, list) => list.length ? '<div class="sec">' + title + '<span>' + list.length + '</span></div>' + list.map(rowHtml).join('') : '';
   if (VIEW === 'girls') { // 女性: 受入れ未は出勤が近い順、ほかは日程の近い順
-    const key = r => (r.pend && r.pend.start) || (r.dates ? '0' : '9999');
-    document.getElementById('rows').innerHTML = rows.length ? rows.slice().sort((x, y) => key(x) < key(y) ? -1 : key(x) > key(y) ? 1 : y.ts - x.ts).map(girlRow).join('')
-      : '<div class="empty">' + (FILTER === 'pend' ? '受け入れ体制が⭕️になっていない人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '出勤中の人はいません' : 'まだいません') + '</div>';
+    const key = r => (r.pend && r.pend.start) || r.ld || '9999';
+    const past = ['done', 'other'].indexOf(FILTER) !== -1; // 終わった人は新しい順、これからの人は近い順
+    const byNew = (x, y) => (y.ld || '').localeCompare(x.ld || '') || y.ts - x.ts;
+    const cmp = past ? (FILTER === 'done' && GSORT === 'judge' ? (x, y) => ((JRANK[x.judge] ?? 9) - (JRANK[y.judge] ?? 9)) || byNew(x, y) : byNew)
+      : (x, y) => key(x) < key(y) ? -1 : key(x) > key(y) ? 1 : y.ts - x.ts;
+    const sortBar = FILTER === 'done' ? '<div class="gsort">' + [['new', '新しい順'], ['judge', '判定がいい順']].map(o => `<button class="${GSORT === o[0] ? 'on' : ''}" onclick="setGSort('${o[0]}')">${o[1]}</button>`).join('') + '</div>' : '';
+    document.getElementById('rows').innerHTML = rows.length ? sortBar + rows.slice().sort(cmp).map(girlRow).join('')
+      : '<div class="empty">' + (FILTER === 'pend' ? '受け入れ体制が⭕️になっていない人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '出勤中の人はいません' : FILTER === 'done' ? '出勤済みの人はいません' : FILTER === 'noshow' ? '未出勤の人はいません' : 'まだいません') + '</div>';
     document.querySelectorAll('#rows .av').forEach(el => avatar(el, el.dataset.pic, el.dataset.nm));
     return;
   }
