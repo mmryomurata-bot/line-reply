@@ -188,6 +188,8 @@
   .quick { display:flex; gap:8px; padding:6px 10px; background:#fff; border-top:1px solid #eee; overflow-x:auto; }
   .quick button { flex:none; border:1px solid #d6d6d6; background:#fff; border-radius:18px; padding:6px 14px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:4px; }
   .quick button img { width:26px; height:26px; }
+  .quick .qres { background:#fff6e8; border-color:#ffc978; color:#b35c00; }
+  .st-hold { background:#ffe5e3; color:#d0302a; }
   .freeb { display:inline-block; background:#06c755; color:#fff; font-weight:800; border-radius:12px; padding:2px 9px; font-size:12px; }
   .freeb.low { background:#ff3b30; }
   .modeb { flex:none; border:none; border-radius:16px; padding:6px 12px; font-size:13px; font-weight:800; margin-right:6px; }
@@ -250,6 +252,7 @@
   <div class="chips" id="tChips"></div>
   <div class="msgs" id="tMsgs"></div>
   <div class="quick">
+    <button id="qResume" class="qres" onclick="resumeAsk()" style="display:none"></button>
     <button onclick="quickSend('お願いします！')">お願いします！</button>
     <button onclick="quickSend(BOW)"><img src="https://stickershop.line-scdn.net/stickershop/v1/sticker/52002739/android/sticker.png" alt="">ペコリ</button>
   </div>
@@ -359,7 +362,7 @@ function ago(ts) {
 }
 function rowHtml(r) {
   const who = r.dir === 'in' ? '' : r.dir === 'me' ? '<b class="who">あなた</b>' : '<b class="who">ボット</b>';
-  const st = !r.need ? '' : r.draft ? '<span class="st st-ok">📝 案あり・送るだけ</span>' : r.noReply ? '<span class="st st-low">返事いらなそう</span>'
+  const st = !r.need ? '' : r.held && !r.draft && !r.aiWait ? '<span class="st st-hold">🙋 あなたの判断待ち</span>' : r.draft ? '<span class="st st-ok">📝 案あり・送るだけ</span>' : r.noReply ? '<span class="st st-low">返事いらなそう</span>'
     : r.aiWait ? '<span class="st st-low">AIが返事中</span>' : '<span class="st st-low">案を作成中…</span>';
   const late = r.need && Date.now() - r.ts > 3 * 3600000;
   return `<div class="row ${r.need ? 'need' : ''}${r.unread ? ' unread' : ''}" onclick="openThread('${r.user}')">
@@ -462,6 +465,26 @@ function curMode() { const rw = curRow(); return (rw && rw.mode) || (T && T.mode
 function renderMode() {
   const el = document.getElementById('tMode'), m = curMode();
   el.className = 'modeb ' + m; el.textContent = m === 'manual' ? '✋ 手動' : '🤖 自動';
+  // 受入れ未の人: 台帳で足りない項目の質問からボットを再開するボタン(2026-11-11)
+  const rw = curRow(), b = document.getElementById('qResume');
+  if (rw && rw.pend) { b.style.display = ''; b.textContent = rw.ask === '完了' ? '✅ 受入れ⭕️にする' : '▶ 続きを聞く（' + rw.ask + '）'; }
+  else b.style.display = 'none';
+}
+let resumeBusy = false;
+async function resumeAsk() {
+  const rw = curRow(); if (!rw || !rw.pend || resumeBusy) return;
+  const msg = rw.ask === '完了' ? rw.name + 'さんを受け入れ体制⭕️にします（相手には何も送りません）。よろしいですか？'
+    : rw.name + 'さんに「' + rw.ask + '」の質問を送って、ボットを自動に戻します。よろしいですか？';
+  if (!confirm(msg)) return;
+  resumeBusy = true; toast('送っています…', 3000);
+  try {
+    const r = await call('ibxResume', rw.user);
+    if (!r.ok) { toast('できませんでした: ' + r.reason, 4500); return; }
+    toast(r.sent ? '「' + r.label + '」の質問を送りました' : r.label + 'にしました', 3500);
+    rw.mode = 'auto'; rw.held = false; if (T) T.mode = 'auto';
+    renderMode(); loadAll && loadAll();
+  } catch (e) { toast('できませんでした: ' + e.message, 4500); }
+  finally { resumeBusy = false; }
 }
 async function toggleMode() {
   const rw = curRow(); if (!rw || modeBusy) return;
