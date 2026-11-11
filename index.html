@@ -213,6 +213,28 @@
   .pk { width:96px; flex:none; color:#8c8c8c; font-size:13px; padding-top:1px; } .pv2 { flex:1; white-space:pre-wrap; word-break:break-word; line-height:1.5; }
   .pnote { color:#9a9a9a; font-size:13px; padding:6px 0; }
   .plink { display:block; margin-top:14px; color:#1b73e8; font-weight:700; text-decoration:none; }
+  /* LINEと同じ薄い見出し(2026-11-11) */
+  .th-head.lh { height:48px; padding:0 6px 0 2px; gap:4px; background:#fff; border-bottom:1px solid #ececec; box-sizing:border-box; flex:none; }
+  .th-head.lh .back { font-size:30px; width:36px; padding:0; }
+  .th-head.lh .ttl { flex:1; min-width:0; display:flex; align-items:baseline; gap:7px; overflow:hidden; cursor:pointer; }
+  .th-head.lh .nm { font-size:16.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:0 1 auto; }
+  .th-head.lh .nd { flex:none; font-size:12px; color:#9a9a9a; font-weight:600; letter-spacing:.2px; }
+  .th-head.lh .nd.on { color:#06a84a; }
+  .th-head.lh .modeb { padding:4px 10px; font-size:12px; margin-right:2px; }
+  .ib { border:0 !important; background:none !important; color:#333; padding:4px 6px !important; display:flex; align-items:center; }
+  .qfree:empty { display:none; } .qfree { display:flex; align-items:center; flex:none; }
+  /* 情報ページ: 全画面で切りかえ */
+  .prof { background:#fff; flex-direction:column; align-items:stretch; justify-content:flex-start; }
+  .prof .psheet { max-width:none; max-height:none; flex:1; border-radius:0; padding:0 18px calc(28px + env(safe-area-inset-bottom)); }
+  .phero { text-align:center; padding:22px 0 14px; }
+  .phero .av { width:76px; height:76px; font-size:30px; margin:0 auto 10px; }
+  .pnm { font-size:19px; font-weight:800; }
+  .psub { font-size:12.5px; color:#9a9a9a; margin-top:4px; }
+  .prof .ptodo { margin:0 0 14px; text-align:center; }
+  .prof .pph { margin-bottom:4px; } .prof .pph img { height:150px; border-radius:12px; }
+  .prof .psec { font-size:11.5px; letter-spacing:.6px; color:#a8a8a8; font-weight:700; margin:22px 0 2px; }
+  .prof .pr { border-bottom:1px solid #f4f4f4; padding:10px 0; font-size:14.5px; }
+  .prof .pk { width:88px; color:#a0a0a0; font-size:13px; }
 </style>
 </head>
 <body>
@@ -238,20 +260,16 @@
   <div id="gBody"><div class="empty">読み込み中…</div></div>
 </div>
 <div id="thread">
-  <div class="th-head">
+  <div class="th-head lh">
     <button class="back" onclick="closeThread()">‹</button>
-    <div class="av" id="tAv" onclick="openProf()"></div>
-    <div style="min-width:0;flex:1" onclick="openProf()">
-      <div class="nm" id="tName"></div>
-      <div class="ln" id="tLn"></div>
-    </div>
+    <div class="ttl" onclick="openProf()"><span class="nm" id="tName"></span><span class="nd" id="tNext"></span></div>
     <button class="modeb" id="tMode" onclick="toggleMode()"></button>
-    <button class="infob" onclick="openProf()">情報</button>
+    <button class="infob ib" onclick="openProf()" aria-label="情報"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="7.6" r="1.25" fill="currentColor"/><rect x="11.1" y="10.4" width="1.8" height="7" rx=".9" fill="currentColor"/></svg></button>
   </div>
   <div class="jbar" id="tJudge"></div>
-  <div class="chips" id="tChips"></div>
   <div class="msgs" id="tMsgs"></div>
   <div class="quick">
+    <span id="tFree" class="qfree"></span>
     <button id="qResume" class="qres" onclick="resumeAsk()" style="display:none"></button>
     <button onclick="quickSend('お願いします！')">お願いします！</button>
     <button onclick="quickSend(BOW)"><img src="https://stickershop.line-scdn.net/stickershop/v1/sticker/52002739/android/sticker.png" alt="">ペコリ</button>
@@ -262,7 +280,7 @@
     <button class="sendb" onclick="sendFree()">➤</button>
   </div>
 </div>
-<div class="prof" id="prof" onclick="if(event.target===this)closeProf()"><div class="psheet" id="pBody"></div></div>
+<div class="prof" id="prof"><div class="th-head lh"><button class="back" onclick="closeProf()">‹</button><div class="ttl"><span class="nm">情報</span></div></div><div class="psheet" id="pBody"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -519,11 +537,19 @@ function renderProf() {
   const ph = PHOTOS[CUR];
   const photos = ph === 'loading' ? '<div class="pnote">写真を読み込み中…</div>' : ph && ph.length ? '<div class="pph">' + ph.map(u => `<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" loading="lazy"></a>`).join('') + '</div>' : '<div class="pnote">写真はまだありません</div>';
   const rows = (t.prof || []).map(x => `<div class="pr"><div class="pk">${esc(x[0])}</div><div class="pv2">${esc(x[1])}</div></div>`).join('') || '<div class="pnote">台帳の情報がありません</div>';
-  document.getElementById('pBody').innerHTML = `<div class="ph"><b>${esc(t.name)}</b><button class="pclose" onclick="closeProf()">×</button></div>
+  const d = t.data || {};
+  const kv = (k, v) => v ? `<div class="pr"><div class="pk">${esc(k)}</div><div class="pv2">${esc(v)}</div></div>` : '';
+  const pend = rw.pend ? `<div class="ptodo${rw.pend.days != null && rw.pend.days <= 2 ? ' soon' : ''}">受入れ⭕️に足りない：${esc(rw.pend.lack.join('・') || '台帳に⭕️を付けるだけ')}</div>` : '';
+  document.getElementById('pBody').innerHTML = `<div class="phero"><div class="av" id="pAv"></div><div class="pnm">${esc(t.name)}</div>
+      <div class="psub">${esc([t.today ? '出勤中' : t.dates ? '次回 ' + t.dates : '', rw.info || ''].filter(Boolean).join('　'))}</div></div>
+    ${pend}
     ${photos}
+    <div class="psec">やりとり</div>
+    ${kv('段階', t.stage)}${kv('源氏名', d['源氏名'])}${kv('出勤時間', d['出勤時間帯'])}${kv('店泊', d['店泊'])}${kv('インターバル', d['インターバル'])}${kv('LINE名', t.ln)}
+    <div class="psec">台帳</div>${rows}
     <div class="psec">判定</div><div class="jbs">${judgeBtns(rw.judge || '')}</div>
-    <div class="psec">情報</div>${rows}
     ${t.drive ? `<a class="plink" href="${esc(t.drive)}" target="_blank">Driveのフォルダを開く ›</a>` : ''}`;
+  avatar(document.getElementById('pAv'), t.pic, t.name);
 }
 
 // ---------- やりとり ----------
@@ -542,14 +568,12 @@ function openThread(uid, quiet) {
 
 function render() {
   const t = T;
-  avatar(document.getElementById('tAv'), t.pic, t.name);
+  // 見出しは名前と次回出勤だけ(LINEと同じ高さ)。ほかの情報は「情報」ページへ(2026-11-11 オーナー指示)
   document.getElementById('tName').textContent = t.name;
-  const rw = curRow();
-  document.getElementById('tLn').textContent = (rw && rw.info ? rw.info + '　' : '') + (t.ln ? 'LINE名: ' + t.ln : '');
+  document.getElementById('tNext').textContent = t.today ? '出勤中' : t.dates ? t.dates : '';
+  document.getElementById('tNext').className = 'nd' + (t.today ? ' on' : '');
   renderJudgeBar(); renderMode();
-  const d = t.data || {};
-  document.getElementById('tChips').innerHTML = freeBadge((curRow() || {}).rt) + (t.today ? '<span class="tag t-today">🟢 本日出勤</span>' : t.dates ? '<span class="tag t-dates">📅 ' + esc(t.dates) + '</span>' : '') + '<span class="tag t-purple">' + esc(t.stage) + '</span>' +
-    Object.keys(d).filter(k => d[k]).map(k => '<span class="tag t-gray">' + esc(k) + ': ' + esc(d[k]) + '</span>').join('');
+  document.getElementById('tFree').innerHTML = freeBadge((curRow() || {}).rt);
   let html = '', lastDay = '';
   if (!t.hist.length) html += '<div class="empty">このページを作る前のやりとりは出ません</div>';
   t.hist.forEach(m => {
