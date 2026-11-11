@@ -586,14 +586,14 @@ loadList();
 // 1秒ごとに「変わった？」を聞く。変わっていれば同じ返事で中身も届く(往復1回)。念のため15秒ごとにも全部読む
 let VER = null, lastFull = Date.now(), verBusy = false;
 setInterval(async () => {
-  if (document.hidden || verBusy || loading || editing || busy || modeBusy) return;
+  if (document.hidden || verBusy || loading || editing || modeBusy) return; // 送信中も新着は見に行く
   verBusy = true;
   try {
     const force = Date.now() - lastFull > 15000;
     const have = {}; Object.keys(TH).forEach(u => have[u] = TH[u].sig);
     const r = await call('ibxPoll', force ? 'x' : VER, have);
     VER = r.ver;
-    if (r.all && !editing && !busy && !modeBusy) { lastFull = Date.now(); applyAll(r.all); }
+    if (r.all && !editing && !modeBusy) { lastFull = Date.now(); applyAll(r.all); }
   } catch (e) {} finally { verBusy = false; }
 }, 1000);
 window.addEventListener('focus', () => loadAll());
