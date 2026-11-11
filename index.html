@@ -155,6 +155,14 @@
 
   /* 女の子の情報・判定 */
   .tabs button { font-size:13px; }
+  /* タブの件数は色つきの丸。0件のタブは薄くする(2026-11-11 オーナー了承) */
+  .tabs button { display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap; }
+  .tabs button .n { display:inline-block; min-width:19px; height:19px; line-height:19px; padding:0 5px; border-radius:10px; font-size:11.5px; font-weight:800; color:#fff; margin-left:0; box-sizing:border-box; }
+  .tabs .c-red .n { background:#ff3b30; } .tabs .c-org .n { background:#ff9500; } .tabs .c-yel .n { background:#f5b800; }
+  .tabs .c-grn .n { background:#06c755; } .tabs .c-gry .n { background:#b8b8b8; }
+  .tabs button.zero { opacity:.4; } .tabs button.zero .n { background:#c8c8c8; }
+  .tabs button.on { opacity:1; }
+  .pchip { display:inline-block; background:#fff; color:#b35c00; border:1px solid #ffc978; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700; margin-right:3px; }
   .t-info { background:#fff; color:#555; border-color:#e2e2e2; }
   .st-judge { background:#fff4d6; color:#9a6a00; }
   .jt { font-weight:700; } .j-big { background:#1b73e8 !important; color:#fff !important; } .j-yes { background:var(--lg) !important; color:#fff !important; }
@@ -205,11 +213,11 @@
     <h1>やりとり中 (<span id="cnt">…</span>) <button class="bellb" id="bell" onclick="askBadge()" style="display:none">🔔 アイコンに数を出す</button></h1>
     <input class="search" id="q" placeholder="検索（名前・源氏名・本文）" oninput="renderList()">
     <div class="tabs" id="tabs">
-      <button data-f="need" onclick="setFilter('need')">要返信</button>
-      <button data-f="today" onclick="setFilter('today')">本日出勤</button>
-      <button data-f="pend" onclick="setFilter('pend')">受入れ未</button>
-      <button data-f="judge" onclick="setFilter('judge')">判定</button>
-      <button data-f="all" onclick="setFilter('all')">すべて</button>
+      <button data-f="need" data-l="返事待ち" class="c-red" onclick="setFilter('need')">返事待ち</button>
+      <button data-f="pend" data-l="準備まだ" class="c-org" onclick="setFilter('pend')">準備まだ</button>
+      <button data-f="judge" data-l="判定待ち" class="c-yel" onclick="setFilter('judge')">判定待ち</button>
+      <button data-f="today" data-l="出勤中" class="c-grn" onclick="setFilter('today')">出勤中</button>
+      <button data-f="all" data-l="すべて" class="c-gry" onclick="setFilter('all')">すべて</button>
     </div>
   </header>
   <div id="summary"></div>
@@ -315,7 +323,9 @@ function renderList() {
   const cnt = { pend: DATA.rows.filter(r => r.pend).length, judge: DATA.rows.filter(r => r.needJudge).length, need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length };
   document.querySelectorAll('#tabs button').forEach(b => {
     b.classList.toggle('on', b.dataset.f === FILTER);
-    b.innerHTML = b.textContent.replace(/\d+$/, '').trim() + '<span class="n">' + cnt[b.dataset.f] + '</span>';
+    const n = cnt[b.dataset.f];
+    b.classList.toggle('zero', !n);
+    b.innerHTML = b.dataset.l + (n ? '<span class="n">' + (n > 99 ? '99+' : n) + '</span>' : '');
   });
   document.getElementById('cnt').textContent = DATA.rows.length;
   const need = DATA.rows.filter(r => r.need);
@@ -329,9 +339,9 @@ function renderList() {
   const rest = rows.filter(r => !r.need);
   const sec = (title, list) => list.length ? '<div class="sec">' + title + '<span>' + list.length + '</span></div>' + list.map(rowHtml).join('') : '';
   document.getElementById('rows').innerHTML = rows.length
-    ? (FILTER === 'pend' ? rows.slice().sort((x, y) => x.pend.start < y.pend.start ? -1 : 1).map(rowHtml).join('')
+    ? (FILTER === 'pend' ? rows.slice().sort((x, y) => (x.pend.start || '9999') < (y.pend.start || '9999') ? -1 : 1).map(rowHtml).join('')
       : FILTER === 'need' || FILTER === 'judge' ? (FILTER === 'judge' ? rows : wait).map(rowHtml).join('') : sec('返事待ち', wait) + sec(FILTER === 'today' ? '本日出勤' : 'その他', rest))
-    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'pend' ? '受け入れ未完了の人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '本日出勤の人はいません' : 'まだやりとりがありません') + '</div>';
+    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'pend' ? '準備まだの人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '出勤中の人はいません' : 'まだやりとりがありません') + '</div>';
   document.querySelectorAll('#rows .av').forEach(el => avatar(el, el.dataset.pic, el.dataset.nm));
 }
 
@@ -382,7 +392,8 @@ function quickSend(x) { doSend([x], false); }
 function pendTag(p) {
   if (!p) return '';
   const when = p.days == null ? '日程未定' : p.days <= 0 ? '本日〜' : 'あと' + p.days + '日';
-  return `<span class="pend${p.days != null && p.days <= 3 ? ' soon' : ''}">⚠️ 受入れ未・${when}${p.lack.length ? '｜足りない: ' + esc(p.lack.join('・')) : ''}</span> `;
+  // 出勤まで2日以内は赤。足りないものは1つずつ小さな札にする
+  return `<span class="pend${p.days != null && p.days <= 2 ? ' soon' : ''}">準備まだ・${when}</span> ` + p.lack.map(x => '<span class="pchip">' + esc(x) + '</span>').join('') + ' ';
 }
 // 未読の数(LINEと同じ緑の丸)。開いたら既読にして、LINEにも既読を伝える。合計はタイトルとアイコンに出す
 function totalUnread() { return DATA ? DATA.rows.reduce((a, r) => a + (r.unread || 0), 0) : 0; }
