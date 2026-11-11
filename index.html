@@ -240,8 +240,8 @@
 <body>
 <div id="list">
   <header>
-    <span class="quota" id="quota"></span>
-    <h1>やりとり中 (<span id="cnt">…</span>) <button class="bellb" id="bell" onclick="askBadge()" style="display:none">🔔 アイコンに数を出す</button></h1>
+    <span class="quota" id="quota" style="display:none"></span>
+    <h1 onclick="askBadge()">トーク <button class="bellb" id="bell" style="display:none"></button><span id="cnt" style="display:none">…</span></h1>
     <input class="search" id="q" placeholder="検索（名前・源氏名・本文）" oninput="renderList()">
     <div class="tabs" id="tabs">
       <button data-f="need" data-l="返事待ち" class="c-red" onclick="setFilter('need')">返事待ち</button>
@@ -361,7 +361,7 @@ function renderList() {
   const working = DATA.rows.filter(r => r.today);
   const todayHtml = working.length ? '<div class="summary" style="background:#eaf7ee;border-color:#bfe3c8;color:#1f6b3a"><b>🟢 本日出勤 ' + working.length + '人</b><br>' + working.map(r => esc(r.name)).join('、') + '</div>' : '';
   const rgHtml = '<div class="rgbar" onclick="openGuide()">🏠 ルーム案内' + (DATA.rgWait ? '　<span style="color:#c0392b">確認待ち ' + DATA.rgWait + '人</span>' : '') + '　›</div>';
-  document.getElementById('summary').innerHTML = todayHtml; // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
+  document.getElementById('summary').innerHTML = ''; // 一覧はLINEと同じく名前・本文・時間だけ(2026-11-11 オーナー指示) // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
   // 返事待ち → 本日出勤 → その他 の順に区切って出す。返事待ちは待っている時間の長い順
   const wait = rows.filter(r => r.need).sort((x, y) => x.ts - y.ts);
   const rest = rows.filter(r => !r.need);
@@ -389,8 +389,7 @@ function rowHtml(r) {
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
           ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}${r.unread ? `<span class="ub">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</div>
         <div class="pv">${who}${esc(r.last)}</div>
-        ${metaLine(r, st)}
-        ${pendTag(r.pend)}
+        ${FILTER === 'pend' ? pendTag(r.pend) : ''}
       </div>
     </div>`;
 }
@@ -438,7 +437,7 @@ function updateBadge() {
   document.title = n ? '(' + n + ') エステ返信' : 'エステ返信';
   try { if (navigator.setAppBadge) { n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } } catch (e) {}
   const b = document.getElementById('bell');
-  if (b) b.style.display = ('Notification' in window && Notification.permission === 'default' && navigator.setAppBadge) ? 'inline-block' : 'none';
+  if (b) b.style.display = 'none'; // ボタンは出さない。見出しをタップで許可(2026-11-11)
 }
 async function askBadge() { try { await Notification.requestPermission(); } catch (e) {} updateBadge(); }
 function markRead(uid) {
