@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="LINE返信">
 <title>LINE返信</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1877f2">
 <meta charset="utf-8">
 <style>
   :root { --bg:#f6f3ee; --card:#fffdf8; --line:#e8e1d6; --ink:#2b2622; --sub:#8a8178; --red:#c0392b; --gold:#d4a73a;
@@ -161,6 +164,10 @@
   .b.media .pic { max-width:200px; max-height:260px; border-radius:14px; display:block; background:#ddd; min-width:80px; min-height:80px; object-fit:cover; }
   .bigimg { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:99; display:flex; align-items:center; justify-content:center; }
   .bigimg img { max-width:100%; max-height:100%; }
+  .ub { flex:none; margin-left:6px; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background:#06c755; color:#fff; font-size:12px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+  .row.unread .nm { font-weight:900 !important; color:#000 !important; }
+  .row.unread .pv { color:#111 !important; font-weight:600; }
+  .bellb { font-size:12px; border:1px solid #ddd; background:#fff; border-radius:14px; padding:3px 10px; margin-left:6px; vertical-align:middle; }
   .quick { display:flex; gap:8px; padding:6px 10px; background:#fff; border-top:1px solid #eee; overflow-x:auto; }
   .quick button { flex:none; border:1px solid #d6d6d6; background:#fff; border-radius:18px; padding:6px 14px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:4px; }
   .quick button img { width:26px; height:26px; }
@@ -193,7 +200,7 @@
 <div id="list">
   <header>
     <span class="quota" id="quota"></span>
-    <h1>やりとり中 (<span id="cnt">…</span>)</h1>
+    <h1>やりとり中 (<span id="cnt">…</span>) <button class="bellb" id="bell" onclick="askBadge()" style="display:none">🔔 アイコンに数を出す</button></h1>
     <input class="search" id="q" placeholder="検索（名前・源氏名・本文）" oninput="renderList()">
     <div class="tabs" id="tabs">
       <button data-f="need" onclick="setFilter('need')">要返信</button>
@@ -293,6 +300,8 @@ function applyAll(r) {
       delete r.threads;
       DATA = r; cachePut('list', DATA); cachePut('th', TH);
       if (CUR && TH[CUR] && !editing && !busy) { T = Object.assign({}, TH[CUR], { quota: DATA.quota }); render(); }
+      if (CUR && document.getElementById('thread').style.display !== 'none') markRead(CUR);
+      updateBadge();
       if (!CUR || document.getElementById('list').style.display !== 'none') renderList();
 }
 function renderList() {
@@ -332,11 +341,11 @@ function rowHtml(r) {
   const st = !r.need ? '' : r.draft ? '<span class="st st-ok">📝 案あり・送るだけ</span>' : r.noReply ? '<span class="st st-low">返事いらなそう</span>'
     : r.aiWait ? '<span class="st st-low">AIが返事中</span>' : '<span class="st st-low">案を作成中…</span>';
   const late = r.need && Date.now() - r.ts > 3 * 3600000;
-  return `<div class="row ${r.need ? 'need' : ''}" onclick="openThread('${r.user}')">
+  return `<div class="row ${r.need ? 'need' : ''}${r.unread ? ' unread' : ''}" onclick="openThread('${r.user}')">
       <div class="av" data-pic="${esc(r.pic)}" data-nm="${esc(r.name)}"></div>
       <div class="mid">
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
-          ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}</div>
+          ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}${r.unread ? `<span class="ub">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</div>
         <div class="pv">${who}${esc(r.last)}</div>
         <div class="tags">${freeBadge(r.rt)}${st}
           ${r.today ? '<span class="tag t-today">🟢 本日出勤</span>' : r.dates ? '<span class="tag t-dates">📅 ' + esc(r.dates) + '</span>' : ''}
@@ -365,6 +374,22 @@ function renderJudgeBar() {
 // ワンタップで送る(2026-11-11 オーナー指示: 客が来たら「お願いします！」、オプション・預かり金額が分かったらクマのペコリ)
 const BOW = '[[sticker:11537:52002739]]';
 function quickSend(x) { doSend([x], false); }
+// 未読の数(LINEと同じ緑の丸)。開いたら既読にして、LINEにも既読を伝える。合計はタイトルとアイコンに出す
+function totalUnread() { return DATA ? DATA.rows.reduce((a, r) => a + (r.unread || 0), 0) : 0; }
+function updateBadge() {
+  const n = totalUnread();
+  document.title = n ? '(' + n + ') LINE返信' : 'LINE返信';
+  try { if (navigator.setAppBadge) { n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } } catch (e) {}
+  const b = document.getElementById('bell');
+  if (b) b.style.display = ('Notification' in window && Notification.permission === 'default' && navigator.setAppBadge) ? 'inline-block' : 'none';
+}
+async function askBadge() { try { await Notification.requestPermission(); } catch (e) {} updateBadge(); }
+function markRead(uid) {
+  const rw = DATA && DATA.rows.find(r => r.user === uid);
+  if (!rw || !rw.unread || document.hidden) return;
+  rw.unread = 0; updateBadge(); cachePut('list', DATA);
+  call('ibxRead', uid).catch(() => {});
+}
 // スタンプ・画像の吹き出し
 const IMG = {};
 function bubble(m) {
@@ -452,6 +477,7 @@ function openThread(uid, quiet) {
   document.getElementById('thread').style.display = 'flex';
   if (TH[uid]) { if (!(quiet && editing)) { T = Object.assign({}, TH[uid], { quota: DATA && DATA.quota }); render(); } }
   else { document.getElementById('tMsgs').innerHTML = '<div class="empty">読み込み中…</div>'; }
+  markRead(uid);
   if (!quiet) loadAll();
 }
 
