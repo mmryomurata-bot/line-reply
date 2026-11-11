@@ -168,6 +168,8 @@
   .row.unread .nm { font-weight:900 !important; color:#000 !important; }
   .row.unread .pv { color:#111 !important; font-weight:600; }
   .bellb { font-size:12px; border:1px solid #ddd; background:#fff; border-radius:14px; padding:3px 10px; margin-left:6px; vertical-align:middle; }
+  .pend { display:inline-block; background:#fff1dc; color:#b35c00; border:1px solid #ffc978; font-weight:800; border-radius:12px; padding:2px 9px; font-size:12px; }
+  .pend.soon { background:#ff3b30; color:#fff; border-color:#ff3b30; }
   .quick { display:flex; gap:8px; padding:6px 10px; background:#fff; border-top:1px solid #eee; overflow-x:auto; }
   .quick button { flex:none; border:1px solid #d6d6d6; background:#fff; border-radius:18px; padding:6px 14px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:4px; }
   .quick button img { width:26px; height:26px; }
@@ -205,6 +207,7 @@
     <div class="tabs" id="tabs">
       <button data-f="need" onclick="setFilter('need')">要返信</button>
       <button data-f="today" onclick="setFilter('today')">本日出勤</button>
+      <button data-f="pend" onclick="setFilter('pend')">受入れ未</button>
       <button data-f="judge" onclick="setFilter('judge')">判定</button>
       <button data-f="all" onclick="setFilter('all')">すべて</button>
     </div>
@@ -308,8 +311,8 @@ function renderList() {
   if (!DATA) return;
   const q = document.getElementById('q').value.trim();
   const rows = DATA.rows.filter(r => (!q || (r.name + r.ln + r.last).indexOf(q) !== -1)
-    && (FILTER === 'all' || (FILTER === 'need' && r.need) || (FILTER === 'today' && r.today) || (FILTER === 'judge' && r.needJudge)));
-  const cnt = { judge: DATA.rows.filter(r => r.needJudge).length, need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length };
+    && (FILTER === 'all' || (FILTER === 'need' && r.need) || (FILTER === 'today' && r.today) || (FILTER === 'judge' && r.needJudge) || (FILTER === 'pend' && r.pend)));
+  const cnt = { pend: DATA.rows.filter(r => r.pend).length, judge: DATA.rows.filter(r => r.needJudge).length, need: DATA.rows.filter(r => r.need).length, today: DATA.rows.filter(r => r.today).length, all: DATA.rows.length };
   document.querySelectorAll('#tabs button').forEach(b => {
     b.classList.toggle('on', b.dataset.f === FILTER);
     b.innerHTML = b.textContent.replace(/\d+$/, '').trim() + '<span class="n">' + cnt[b.dataset.f] + '</span>';
@@ -326,8 +329,9 @@ function renderList() {
   const rest = rows.filter(r => !r.need);
   const sec = (title, list) => list.length ? '<div class="sec">' + title + '<span>' + list.length + '</span></div>' + list.map(rowHtml).join('') : '';
   document.getElementById('rows').innerHTML = rows.length
-    ? (FILTER === 'need' || FILTER === 'judge' ? (FILTER === 'judge' ? rows : wait).map(rowHtml).join('') : sec('返事待ち', wait) + sec(FILTER === 'today' ? '本日出勤' : 'その他', rest))
-    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '本日出勤の人はいません' : 'まだやりとりがありません') + '</div>';
+    ? (FILTER === 'pend' ? rows.slice().sort((x, y) => x.pend.start < y.pend.start ? -1 : 1).map(rowHtml).join('')
+      : FILTER === 'need' || FILTER === 'judge' ? (FILTER === 'judge' ? rows : wait).map(rowHtml).join('') : sec('返事待ち', wait) + sec(FILTER === 'today' ? '本日出勤' : 'その他', rest))
+    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'pend' ? '受け入れ未完了の人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '本日出勤の人はいません' : 'まだやりとりがありません') + '</div>';
   document.querySelectorAll('#rows .av').forEach(el => avatar(el, el.dataset.pic, el.dataset.nm));
 }
 
@@ -347,7 +351,7 @@ function rowHtml(r) {
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
           ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}${r.unread ? `<span class="ub">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</div>
         <div class="pv">${who}${esc(r.last)}</div>
-        <div class="tags">${freeBadge(r.rt)}${st}
+        <div class="tags">${freeBadge(r.rt)}${pendTag(r.pend)}${st}
           ${r.today ? '<span class="tag t-today">🟢 本日出勤</span>' : r.dates ? '<span class="tag t-dates">📅 ' + esc(r.dates) + '</span>' : ''}
           ${r.needJudge ? '<span class="st st-judge">⭐ 判定まだ</span>' : ''}${r.judge ? judgeTag(r.judge) : ''}
           ${r.info ? '<span class="tag t-info">' + esc(r.info) + '</span>' : ''}
@@ -374,6 +378,12 @@ function renderJudgeBar() {
 // ワンタップで送る(2026-11-11 オーナー指示: 客が来たら「お願いします！」、オプション・預かり金額が分かったらクマのペコリ)
 const BOW = '[[sticker:11537:52002739]]';
 function quickSend(x) { doSend([x], false); }
+// 受け入れ体制がまだの人(オレンジの札。出勤が近いほど赤)
+function pendTag(p) {
+  if (!p) return '';
+  const when = p.days == null ? '日程未定' : p.days <= 0 ? '本日〜' : 'あと' + p.days + '日';
+  return `<span class="pend${p.days != null && p.days <= 3 ? ' soon' : ''}">⚠️ 受入れ未・${when}${p.lack.length ? '｜足りない: ' + esc(p.lack.join('・')) : ''}</span> `;
+}
 // 未読の数(LINEと同じ緑の丸)。開いたら既読にして、LINEにも既読を伝える。合計はタイトルとアイコンに出す
 function totalUnread() { return DATA ? DATA.rows.reduce((a, r) => a + (r.unread || 0), 0) : 0; }
 function updateBadge() {
