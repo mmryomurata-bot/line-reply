@@ -189,6 +189,15 @@
   .quick button { flex:none; border:1px solid #d6d6d6; background:#fff; border-radius:18px; padding:6px 14px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:4px; }
   .quick button img { width:26px; height:26px; }
   .quick .qres { background:#fff6e8; border-color:#ffc978; color:#b35c00; }
+  .quick .qoff { background:#fff; border-color:#ffb3ae; color:#e0362c; }
+  .offs { display:none; position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.4); align-items:flex-end; justify-content:center; }
+  .offbox { background:#fff; width:100%; max-width:520px; border-radius:18px 18px 0 0; padding:18px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .offt { font-size:16px; font-weight:800; text-align:center; margin-bottom:14px; }
+  .offb { display:block; width:100%; text-align:left; border:1px solid #e6e6e6; background:#fff; border-radius:14px; padding:12px 14px; margin-bottom:8px; }
+  .offb b { display:block; font-size:15.5px; } .offb span { display:block; font-size:12px; color:#8c8c8c; margin-top:3px; }
+  .offb.red b { color:#e0362c; }
+  .offn { font-size:11.5px; color:#a0a0a0; text-align:center; margin:6px 0 10px; }
+  .offc { display:block; width:100%; border:0; background:#f2f3f5; border-radius:12px; padding:12px 0; font-size:15px; font-weight:700; color:#333; }
   .st-hold { background:#ffe5e3; color:#d0302a; }
   .freeb { display:inline-block; background:#06c755; color:#fff; font-weight:800; border-radius:12px; padding:2px 9px; font-size:12px; }
   .freeb.low { background:#ff3b30; }
@@ -284,6 +293,7 @@
   <div class="quick">
     <span id="tFree" class="qfree"></span>
     <button id="qResume" class="qres" onclick="resumeAsk()" style="display:none"></button>
+    <button id="qOff" class="qoff" onclick="offOpen()" style="display:none">出勤取り消し</button>
     <button onclick="quickSend('お願いします！')">お願いします！</button>
     <button onclick="quickSend(BOW)"><img src="https://stickershop.line-scdn.net/stickershop/v1/sticker/52002739/android/sticker.png" alt="">ペコリ</button>
   </div>
@@ -294,6 +304,13 @@
   </div>
 </div>
 <div class="prof" id="prof"><div class="th-head lh"><button class="back" onclick="closeProf()">‹</button><div class="ttl"><span class="nm">情報</span></div></div><div class="psheet" id="pBody"></div></div>
+<div class="offs" id="offs" onclick="if(event.target===this)offClose()"><div class="offbox">
+  <div class="offt" id="offT"></div>
+  <button class="offb" onclick="offDo('today')"><b>今日だけ休み</b><span>出勤中から外し、台帳の備考に記録します。明日からの出勤はそのまま</span></button>
+  <button class="offb red" onclick="offDo('all')"><b>残りも全部なし</b><span>台帳を「未出勤」にします。ルーム案内・出勤確認も止まります</span></button>
+  <div class="offn">カレンダーとキャスカンのシフトは変わりません</div>
+  <button class="offc" onclick="offClose()">やめる</button>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -560,8 +577,24 @@ function renderMode() {
   el.className = 'modeb ' + m; el.textContent = m === 'manual' ? '✋ 手動' : '🤖 自動';
   // 受入れ未の人: 台帳で足りない項目の質問からボットを再開するボタン(2026-11-11)
   const rw = curRow(), b = document.getElementById('qResume');
+  document.getElementById('qOff').style.display = rw && rw.today ? '' : 'none'; // 出勤中の人だけ
   if (rw && rw.pend) { b.style.display = ''; b.textContent = rw.ask === '完了' ? '✅ 受入れ⭕️にする' : '▶ 続きを聞く（' + rw.ask + '）'; }
   else b.style.display = 'none';
+}
+// 出勤取り消し(2026-11-12): 急に来なくなった人。今日だけ休み / 残りも全部なし
+function offOpen() { const rw = curRow(); if (!rw) return; document.getElementById('offT').textContent = rw.name + 'さんの出勤を取り消しますか？'; document.getElementById('offs').style.display = 'flex'; }
+function offClose() { document.getElementById('offs').style.display = 'none'; }
+let offBusy = false;
+async function offDo(scope) {
+  const rw = curRow(); if (!rw || offBusy) return;
+  offBusy = true; offClose(); toast('台帳を書きかえています…', 3000);
+  try {
+    const r = await call('ibxCancelWork', rw.user, scope);
+    if (!r.ok) { toast('できませんでした: ' + r.reason, 4500); return; }
+    rw.today = false; if (T) T.today = false; render(); loadAll();
+    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : '今日は休みにしました', 3500);
+  } catch (e) { toast('できませんでした: ' + e.message, 4500); }
+  finally { offBusy = false; }
 }
 let resumeBusy = false;
 async function resumeAsk() {
