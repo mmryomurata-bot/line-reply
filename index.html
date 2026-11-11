@@ -162,6 +162,8 @@
   .tabs .c-grn .n { background:#06c755; } .tabs .c-gry .n { background:#b8b8b8; }
   .tabs button.zero { opacity:.4; } .tabs button.zero .n { background:#c8c8c8; }
   .tabs button.on { opacity:1; }
+  .ptodo { display:flex; flex-wrap:wrap; align-items:center; gap:4px; width:100%; margin-bottom:2px; }
+  .plbl { font-size:11.5px; color:#b35c00; font-weight:700; }
   .pchip { display:inline-block; background:#fff; color:#b35c00; border:1px solid #ffc978; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700; margin-right:3px; }
   .t-info { background:#fff; color:#555; border-color:#e2e2e2; }
   .st-judge { background:#fff4d6; color:#9a6a00; }
@@ -214,7 +216,7 @@
     <input class="search" id="q" placeholder="検索（名前・源氏名・本文）" oninput="renderList()">
     <div class="tabs" id="tabs">
       <button data-f="need" data-l="返事待ち" class="c-red" onclick="setFilter('need')">返事待ち</button>
-      <button data-f="pend" data-l="準備まだ" class="c-org" onclick="setFilter('pend')">準備まだ</button>
+      <button data-f="pend" data-l="受入れ未" class="c-org" onclick="setFilter('pend')">準備まだ</button>
       <button data-f="judge" data-l="判定待ち" class="c-yel" onclick="setFilter('judge')">判定待ち</button>
       <button data-f="today" data-l="出勤中" class="c-grn" onclick="setFilter('today')">出勤中</button>
       <button data-f="all" data-l="すべて" class="c-gry" onclick="setFilter('all')">すべて</button>
@@ -341,7 +343,7 @@ function renderList() {
   document.getElementById('rows').innerHTML = rows.length
     ? (FILTER === 'pend' ? rows.slice().sort((x, y) => (x.pend.start || '9999') < (y.pend.start || '9999') ? -1 : 1).map(rowHtml).join('')
       : FILTER === 'need' || FILTER === 'judge' ? (FILTER === 'judge' ? rows : wait).map(rowHtml).join('') : sec('返事待ち', wait) + sec(FILTER === 'today' ? '本日出勤' : 'その他', rest))
-    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'pend' ? '準備まだの人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '出勤中の人はいません' : 'まだやりとりがありません') + '</div>';
+    : '<div class="empty">' + (FILTER === 'need' ? '返事待ちの人はいません 🎉' : FILTER === 'pend' ? '受け入れ体制が⭕️になっていない人はいません 🎉' : FILTER === 'judge' ? '判定待ちの人はいません' : FILTER === 'today' ? '出勤中の人はいません' : 'まだやりとりがありません') + '</div>';
   document.querySelectorAll('#rows .av').forEach(el => avatar(el, el.dataset.pic, el.dataset.nm));
 }
 
@@ -392,8 +394,11 @@ function quickSend(x) { doSend([x], false); }
 function pendTag(p) {
   if (!p) return '';
   const when = p.days == null ? '日程未定' : p.days <= 0 ? '本日〜' : 'あと' + p.days + '日';
-  // 出勤まで2日以内は赤。足りないものは1つずつ小さな札にする
-  return `<span class="pend${p.days != null && p.days <= 2 ? ' soon' : ''}">準備まだ・${when}</span> ` + p.lack.map(x => '<span class="pchip">' + esc(x) + '</span>').join('') + ' ';
+  // 受け入れ体制⭕️までにやることを札で出す。出勤まで2日以内は赤
+  const todo = { '時間': '出勤時間を決める', '源氏名': '源氏名を決める', '店泊': '店泊か聞く', 'インターバル': 'インターバルを聞く', '写真': '写真をもらう' };
+  return `<div class="ptodo"><span class="pend${p.days != null && p.days <= 2 ? ' soon' : ''}">受入れ⭕️まだ・出勤${when}</span>`
+    + (p.lack.length ? '<span class="plbl">やること→</span>' + p.lack.map(x => '<span class="pchip">' + esc(todo[x] || x) + '</span>').join('') : '<span class="plbl">台帳の⭕️付けだけ</span>')
+    + '</div>';
 }
 // 未読の数(LINEと同じ緑の丸)。開いたら既読にして、LINEにも既読を伝える。合計はタイトルとアイコンに出す
 function totalUnread() { return DATA ? DATA.rows.reduce((a, r) => a + (r.unread || 0), 0) : 0; }
