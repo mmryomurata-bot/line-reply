@@ -91,7 +91,7 @@
   .sub-btns { display:flex; gap:14px; margin-top:10px; font-size:13px; }
   .sub-btns a { color:var(--sub); text-decoration:underline; cursor:pointer; }
   .composer { background:#fff; border-top:1px solid var(--line); padding:8px 10px calc(8px + env(safe-area-inset-bottom)); display:flex; gap:8px; align-items:flex-end; }
-  .composer textarea { flex:1; min-height:42px; max-height:30vh; font-size:16px; padding:9px 12px; border:1px solid #ccc; border-radius:12px; font-family:inherit; resize:none; }
+  .composer textarea { flex:1; min-height:42px; max-height:none; overflow-y:hidden; line-height:1.4; font-size:16px; padding:9px 12px; border:1px solid #ccc; border-radius:12px; font-family:inherit; resize:none; }
   .icon { font-size:26px; background:none; border:0; padding:4px; line-height:1; }
   .sendb { font-size:24px; color:#7a8aa8; background:none; border:0; padding:6px; }
   .rgbar { margin:10px 10px 0; padding:10px 13px; background:#eef4ff; border:1px solid #c9d8f3; border-radius:14px; color:#24477a; font-size:15px; font-weight:700; cursor:pointer; }
@@ -281,6 +281,10 @@
   <div class="th-head"><button class="back" onclick="closeGuide()">‹</button><div class="nm">🏠 出勤前日のルーム案内</div></div>
   <div id="gBody"><div class="empty">読み込み中…</div></div>
 </div>
+<div id="crp" style="display:none;position:fixed;inset:0;background:#fff;z-index:60;overflow:auto">
+  <div class="th-head"><button class="back" onclick="closeCr()">‹</button><div class="nm">📩 手で送る予約</div></div>
+  <div id="crBody"><div class="empty">読み込み中…</div></div>
+</div>
 <div id="thread">
   <div class="th-head lh">
     <button class="back" onclick="closeThread()">‹</button>
@@ -293,7 +297,7 @@
   <div class="quick">
     <span id="tFree" class="qfree"></span>
     <button id="qResume" class="qres" onclick="resumeAsk()" style="display:none"></button>
-    <button id="qOff" class="qoff" onclick="offOpen()" style="display:none">出勤取り消し</button>
+    <button id="qOff" class="qoff" onclick="offOpen()" style="display:none">休み・早退</button>
     <button onclick="quickSend('お願いします！')">お願いします！</button>
     <button onclick="quickSend(BOW)"><img src="https://stickershop.line-scdn.net/stickershop/v1/sticker/52002739/android/sticker.png" alt="">ペコリ</button>
   </div>
@@ -306,6 +310,7 @@
 <div class="prof" id="prof"><div class="th-head lh"><button class="back" onclick="closeProf()">‹</button><div class="ttl"><span class="nm">情報</span></div></div><div class="psheet" id="pBody"></div></div>
 <div class="offs" id="offs" onclick="if(event.target===this)offClose()"><div class="offbox">
   <div class="offt" id="offT"></div>
+  <button class="offb" onclick="offDo('early')"><b>早退</b><span>今の時刻を台帳の備考に記録し、今日の出勤中から外します。明日からの出勤はそのまま</span></button>
   <button class="offb" onclick="offDo('today')"><b>今日だけ休み</b><span>出勤中から外し、台帳の備考に記録します。明日からの出勤はそのまま</span></button>
   <button class="offb red" onclick="offDo('all')"><b>残りも全部なし</b><span>台帳を「未出勤」にします。ルーム案内・出勤確認も止まります</span></button>
   <div class="offn">カレンダーとキャスカンのシフトは変わりません</div>
@@ -440,7 +445,7 @@ function renderList() {
   const working = DATA.rows.filter(r => r.today);
   const todayHtml = working.length ? '<div class="summary" style="background:#eaf7ee;border-color:#bfe3c8;color:#1f6b3a"><b>🟢 本日出勤 ' + working.length + '人</b><br>' + working.map(r => esc(r.name)).join('、') + '</div>' : '';
   const rgHtml = '<div class="rgbar" onclick="openGuide()">🏠 ルーム案内' + (DATA.rgWait ? '　<span style="color:#c0392b">確認待ち ' + DATA.rgWait + '人</span>' : '') + '　›</div>';
-  document.getElementById('summary').innerHTML = ''; // 一覧はLINEと同じく名前・本文・時間だけ(2026-11-11 オーナー指示) // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
+  document.getElementById('summary').innerHTML = DATA.crMan && VIEW !== 'girls' ? '<div class="rgbar" style="background:#fdecea;color:#b3261e" onclick="openCr()">📩 手で送る予約 ' + DATA.crMan + '件　›</div>' : ''; // LINEで送れなかった予約だけ出す(2026-11-12) // 一覧はLINEと同じく名前・本文・時間だけ(2026-11-11 オーナー指示) // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
   // 返事待ち → 本日出勤 → その他 の順に区切って出す。返事待ちは待っている時間の長い順
   const wait = rows.filter(r => r.need).sort((x, y) => x.ts - y.ts);
   const rest = rows.filter(r => !r.need);
@@ -497,9 +502,10 @@ function judgeBtns(cur) {
 }
 function renderJudgeBar() {
   const rw = curRow(), el = document.getElementById('tJudge');
-  if (!rw || !rw.needJudge) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = 'block';
-  el.innerHTML = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
+  if (!rw || !rw.needJudge) { if (el.style.display !== 'none') { el.style.display = 'none'; el.innerHTML = ''; } return; }
+  const jh = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
+  if (el.style.display !== 'block') el.style.display = 'block';
+  if (el.dataset.h !== jh) { el.innerHTML = jh; el.dataset.h = jh; }
 }
 // ワンタップで送る(2026-11-11 オーナー指示: 客が来たら「お願いします！」、オプション・預かり金額が分かったらクマのペコリ)
 const BOW = '[[sticker:11537:52002739]]';
@@ -574,15 +580,16 @@ setInterval(() => {
 function curMode() { const rw = curRow(); return (rw && rw.mode) || (T && T.mode) || 'auto'; }
 function renderMode() {
   const el = document.getElementById('tMode'), m = curMode();
-  el.className = 'modeb ' + m; el.textContent = m === 'manual' ? '✋ 手動' : '🤖 自動';
+  const sp = (e, k, v) => { if (e[k] !== v) e[k] = v; }, ss = (e, v) => { if (e.style.display !== v) e.style.display = v; }; // 同じなら書き換えない(ペーストのメニューが消えないように)
+  sp(el, 'className', 'modeb ' + m); sp(el, 'textContent', m === 'manual' ? '✋ 手動' : '🤖 自動');
   // 受入れ未の人: 台帳で足りない項目の質問からボットを再開するボタン(2026-11-11)
   const rw = curRow(), b = document.getElementById('qResume');
-  document.getElementById('qOff').style.display = rw && rw.today ? '' : 'none'; // 出勤中の人だけ
-  if (rw && rw.pend) { b.style.display = ''; b.textContent = rw.ask === '完了' ? '✅ 受入れ⭕️にする' : '▶ 続きを聞く（' + rw.ask + '）'; }
-  else b.style.display = 'none';
+  ss(document.getElementById('qOff'), rw && rw.today ? '' : 'none'); // 出勤中の人だけ
+  if (rw && rw.pend) { ss(b, ''); sp(b, 'textContent', rw.ask === '完了' ? '✅ 受入れ⭕️にする' : '▶ 続きを聞く（' + rw.ask + '）'); }
+  else ss(b, 'none');
 }
 // 出勤取り消し(2026-11-12): 急に来なくなった人。今日だけ休み / 残りも全部なし
-function offOpen() { const rw = curRow(); if (!rw) return; document.getElementById('offT').textContent = rw.name + 'さんの出勤を取り消しますか？'; document.getElementById('offs').style.display = 'flex'; }
+function offOpen() { const rw = curRow(); if (!rw) return; document.getElementById('offT').textContent = rw.name + 'さん'; document.getElementById('offs').style.display = 'flex'; }
 function offClose() { document.getElementById('offs').style.display = 'none'; }
 let offBusy = false;
 async function offDo(scope) {
@@ -592,7 +599,7 @@ async function offDo(scope) {
     const r = await call('ibxCancelWork', rw.user, scope);
     if (!r.ok) { toast('できませんでした: ' + r.reason, 4500); return; }
     rw.today = false; if (T) T.today = false; render(); loadAll();
-    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : '今日は休みにしました', 3500);
+    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : scope === 'early' ? '早退を記録しました（' + (r.at || '') + '）' : '今日は休みにしました', 3500);
   } catch (e) { toast('できませんでした: ' + e.message, 4500); }
   finally { offBusy = false; }
 }
@@ -681,11 +688,12 @@ function openThread(uid, quiet) {
 function render() {
   const t = T;
   // 見出しは名前と次回出勤だけ(LINEと同じ高さ)。ほかの情報は「情報」ページへ(2026-11-11 オーナー指示)
-  document.getElementById('tName').textContent = t.name;
-  document.getElementById('tNext').textContent = t.today ? '出勤中' : t.dates ? t.dates : '';
+  const setTx = (id, v) => { const e = document.getElementById(id); if (e.textContent !== v) e.textContent = v; };
+  setTx('tName', t.name);
+  setTx('tNext', t.today ? '出勤中' : t.dates ? t.dates : '');
   document.getElementById('tNext').className = 'nd' + (t.today ? ' on' : '');
   renderJudgeBar(); renderMode();
-  document.getElementById('tFree').innerHTML = freeBadge((curRow() || {}).rt);
+  { const fb = freeBadge((curRow() || {}).rt), fe = document.getElementById('tFree'); if (fe.innerHTML !== fb) fe.innerHTML = fb; }
   let html = '', lastDay = '';
   if (!t.hist.length) html += '<div class="empty">このページを作る前のやりとりは出ません</div>';
   t.hist.forEach(m => {
@@ -696,10 +704,24 @@ function render() {
   });
   html += cardHtml(t);
   const box = document.getElementById('tMsgs');
+  // 中身が同じなら書き換えない。iPhoneは画面が動くと「ペースト」のメニューが消えるため(2026-11-12)
+  if (box.dataset.h === html) return;
+  const typing = document.activeElement === document.getElementById('tText');
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-  box.innerHTML = html;
+  box.innerHTML = html; box.dataset.h = html;
   loadImgs();
-  if (atBottom || !editing) box.scrollTop = box.scrollHeight;
+  if (atBottom || (!editing && !typing)) box.scrollTop = box.scrollHeight;
+}
+// 入力欄はLINEと同じく、書いた分だけ縦に広がる(画面の半分まで。それ以上は中でスクロール)
+function growT() {
+  const ta = document.getElementById('tText');
+  if (!ta) return;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const max = Math.round(vh * 0.5);
+  ta.style.height = 'auto';
+  const h = ta.scrollHeight + 2;
+  ta.style.height = Math.min(Math.max(h, 42), max) + 'px';
+  ta.style.overflowY = h > max ? 'auto' : 'hidden';
 }
 
 let noteOpen = false;
@@ -851,6 +873,34 @@ async function rgDecide(key, send) {
   catch (e) { toast('できませんでした: ' + e.message, 4000); }
 }
 
+// ---------- 手で送る予約(公式LINEで送れなかったキャスト案内) ----------
+let CR = [];
+async function openCr() {
+  document.getElementById('crp').style.display = 'block';
+  try { CR = (await call('crList')).items; renderCr(); } catch (e) { document.getElementById('crBody').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+}
+function closeCr() { document.getElementById('crp').style.display = 'none'; loadList(); }
+function renderCr() {
+  document.getElementById('crBody').innerHTML = CR.length ? CR.map((m, i) => `
+    <div class="gi">
+      <div class="nm">${esc(m.cast)}　<span style="font-weight:400;font-size:13px">${esc(m.date || '')}</span></div>
+      <div class="st" style="color:#b3261e">${esc(m.why)}</div>
+      <div class="gprev">${esc(m.text)}</div>
+      <div class="cbtns"><button class="cb send" onclick="crCopy(${i})">文をコピー</button><button class="cb" onclick="crDone(${i})">送った</button></div>
+    </div>`).join('') : '<div class="empty">手で送る予約はありません</div>';
+}
+async function crCopy(i) { try { await navigator.clipboard.writeText(CR[i].text); toast('コピーしました'); } catch (e) { toast('コピーできませんでした'); } }
+async function crDone(i) { try { CR = (await call('crDone', CR[i].key)).items; renderCr(); toast('済みにしました'); } catch (e) { toast('できませんでした: ' + e.message, 4000); } }
+
+{ const ta = document.getElementById('tText');
+  ta.addEventListener('input', growT);
+  ta.addEventListener('paste', () => setTimeout(growT, 0));
+  ta.addEventListener('focus', () => setTimeout(growT, 300));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', growT);
+  // 値をプログラムで変えたときも高さを合わせる
+  const desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+  Object.defineProperty(ta, 'value', { get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); setTimeout(growT, 0); } });
+}
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
 // 1秒ごとに「変わった？」を聞く。変わっていれば同じ返事で中身も届く(往復1回)。念のため15秒ごとにも全部読む
