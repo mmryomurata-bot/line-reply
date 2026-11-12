@@ -199,6 +199,9 @@
   .offn { font-size:11.5px; color:#a0a0a0; text-align:center; margin:6px 0 10px; }
   .offc { display:block; width:100%; border:0; background:#f2f3f5; border-radius:12px; padding:12px 0; font-size:15px; font-weight:700; color:#333; }
   .st-hold { background:#ffe5e3; color:#d0302a; }
+  .qrow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; }
+  .qd { border:1px solid #e3e3e3; background:#fff; color:#555; font-size:12px; font-weight:800; border-radius:14px; padding:5px 10px; white-space:nowrap; margin-left:auto; }
+  .qd:active { background:#f0f1f3; }
   .freeb { display:inline-block; background:#06c755; color:#fff; font-weight:800; border-radius:12px; padding:2px 9px; font-size:12px; }
   .freeb.low { background:#ff3b30; }
   .modeb { flex:none; border:none; border-radius:16px; padding:6px 12px; font-size:13px; font-weight:800; margin-right:6px; }
@@ -561,9 +564,16 @@ function rowHtml(r) {
         <div class="top"><span class="nm">${esc(r.name)}</span>${r.need
           ? `<span class="wt${late ? ' late' : ''}">${ago(r.ts)}待ち</span>` : `<span class="tm">${fmt(r.ts)}</span>`}${r.unread ? `<span class="ub">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</div>
         <div class="pv">${who}${esc(r.last)}</div>${FILTER === 'pend' ? pendTag(r.pend) : ''}
-        
+        ${r.need ? `<div class="qrow">${st}<button class="qd" onclick="quickDismiss(event,'${r.user}')">✓ 返事いらない</button></div>` : ''}
       </div>
     </div>`;
+}
+// 返事待ちの行から、開かずに外す(2026-11-12 オーナー指示)
+async function quickDismiss(ev, uid) {
+  ev.stopPropagation();
+  if (TH[uid]) TH[uid].need = false; if (DATA) DATA.rows.forEach(r => { if (r.user === uid) { r.need = false; r.held = false; } });
+  renderList(); toast('返事待ちから外しました');
+  try { await call('ibxDismiss', uid); } catch (e) { toast('できませんでした: ' + e.message, 4000); }
 }
 
 
@@ -884,7 +894,7 @@ async function redraft() {
 }
 async function dismiss() {
   const uid = CUR; toast('返信不要にしました');
-  if (TH[uid]) TH[uid].need = false; if (DATA) DATA.rows.forEach(r => { if (r.user === uid) r.need = false; });
+  if (TH[uid]) TH[uid].need = false; if (DATA) DATA.rows.forEach(r => { if (r.user === uid) { r.need = false; r.held = false; } });
   closeThread();
   try { await call('ibxDismiss', uid); } catch (e) { toast('できませんでした: ' + e.message, 4000); }
   loadAll();
