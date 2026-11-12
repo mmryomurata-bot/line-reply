@@ -91,7 +91,7 @@
   .sub-btns { display:flex; gap:14px; margin-top:10px; font-size:13px; }
   .sub-btns a { color:var(--sub); text-decoration:underline; cursor:pointer; }
   .composer { background:#fff; border-top:1px solid var(--line); padding:8px 10px calc(8px + env(safe-area-inset-bottom)); display:flex; gap:8px; align-items:flex-end; }
-  .composer textarea { flex:1; min-height:42px; max-height:30vh; font-size:16px; padding:9px 12px; border:1px solid #ccc; border-radius:12px; font-family:inherit; resize:none; }
+  .composer textarea { flex:1; min-height:42px; max-height:none; overflow-y:hidden; line-height:1.4; font-size:16px; padding:9px 12px; border:1px solid #ccc; border-radius:12px; font-family:inherit; resize:none; }
   .icon { font-size:26px; background:none; border:0; padding:4px; line-height:1; }
   .sendb { font-size:24px; color:#7a8aa8; background:none; border:0; padding:6px; }
   .rgbar { margin:10px 10px 0; padding:10px 13px; background:#eef4ff; border:1px solid #c9d8f3; border-radius:14px; color:#24477a; font-size:15px; font-weight:700; cursor:pointer; }
@@ -502,9 +502,10 @@ function judgeBtns(cur) {
 }
 function renderJudgeBar() {
   const rw = curRow(), el = document.getElementById('tJudge');
-  if (!rw || !rw.needJudge) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = 'block';
-  el.innerHTML = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
+  if (!rw || !rw.needJudge) { if (el.style.display !== 'none') { el.style.display = 'none'; el.innerHTML = ''; } return; }
+  const jh = '<div class="jq">出勤おつかれさまでした。判定は？</div><div class="jbs">' + judgeBtns('') + '</div>';
+  if (el.style.display !== 'block') el.style.display = 'block';
+  if (el.dataset.h !== jh) { el.innerHTML = jh; el.dataset.h = jh; }
 }
 // ワンタップで送る(2026-11-11 オーナー指示: 客が来たら「お願いします！」、オプション・預かり金額が分かったらクマのペコリ)
 const BOW = '[[sticker:11537:52002739]]';
@@ -579,12 +580,13 @@ setInterval(() => {
 function curMode() { const rw = curRow(); return (rw && rw.mode) || (T && T.mode) || 'auto'; }
 function renderMode() {
   const el = document.getElementById('tMode'), m = curMode();
-  el.className = 'modeb ' + m; el.textContent = m === 'manual' ? '✋ 手動' : '🤖 自動';
+  const sp = (e, k, v) => { if (e[k] !== v) e[k] = v; }, ss = (e, v) => { if (e.style.display !== v) e.style.display = v; }; // 同じなら書き換えない(ペーストのメニューが消えないように)
+  sp(el, 'className', 'modeb ' + m); sp(el, 'textContent', m === 'manual' ? '✋ 手動' : '🤖 自動');
   // 受入れ未の人: 台帳で足りない項目の質問からボットを再開するボタン(2026-11-11)
   const rw = curRow(), b = document.getElementById('qResume');
-  document.getElementById('qOff').style.display = rw && rw.today ? '' : 'none'; // 出勤中の人だけ
-  if (rw && rw.pend) { b.style.display = ''; b.textContent = rw.ask === '完了' ? '✅ 受入れ⭕️にする' : '▶ 続きを聞く（' + rw.ask + '）'; }
-  else b.style.display = 'none';
+  ss(document.getElementById('qOff'), rw && rw.today ? '' : 'none'); // 出勤中の人だけ
+  if (rw && rw.pend) { ss(b, ''); sp(b, 'textContent', rw.ask === '完了' ? '✅ 受入れ⭕️にする' : '▶ 続きを聞く（' + rw.ask + '）'); }
+  else ss(b, 'none');
 }
 // 出勤取り消し(2026-11-12): 急に来なくなった人。今日だけ休み / 残りも全部なし
 function offOpen() { const rw = curRow(); if (!rw) return; document.getElementById('offT').textContent = rw.name + 'さん'; document.getElementById('offs').style.display = 'flex'; }
@@ -686,11 +688,12 @@ function openThread(uid, quiet) {
 function render() {
   const t = T;
   // 見出しは名前と次回出勤だけ(LINEと同じ高さ)。ほかの情報は「情報」ページへ(2026-11-11 オーナー指示)
-  document.getElementById('tName').textContent = t.name;
-  document.getElementById('tNext').textContent = t.today ? '出勤中' : t.dates ? t.dates : '';
+  const setTx = (id, v) => { const e = document.getElementById(id); if (e.textContent !== v) e.textContent = v; };
+  setTx('tName', t.name);
+  setTx('tNext', t.today ? '出勤中' : t.dates ? t.dates : '');
   document.getElementById('tNext').className = 'nd' + (t.today ? ' on' : '');
   renderJudgeBar(); renderMode();
-  document.getElementById('tFree').innerHTML = freeBadge((curRow() || {}).rt);
+  { const fb = freeBadge((curRow() || {}).rt), fe = document.getElementById('tFree'); if (fe.innerHTML !== fb) fe.innerHTML = fb; }
   let html = '', lastDay = '';
   if (!t.hist.length) html += '<div class="empty">このページを作る前のやりとりは出ません</div>';
   t.hist.forEach(m => {
@@ -701,10 +704,24 @@ function render() {
   });
   html += cardHtml(t);
   const box = document.getElementById('tMsgs');
+  // 中身が同じなら書き換えない。iPhoneは画面が動くと「ペースト」のメニューが消えるため(2026-11-12)
+  if (box.dataset.h === html) return;
+  const typing = document.activeElement === document.getElementById('tText');
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-  box.innerHTML = html;
+  box.innerHTML = html; box.dataset.h = html;
   loadImgs();
-  if (atBottom || !editing) box.scrollTop = box.scrollHeight;
+  if (atBottom || (!editing && !typing)) box.scrollTop = box.scrollHeight;
+}
+// 入力欄はLINEと同じく、書いた分だけ縦に広がる(画面の半分まで。それ以上は中でスクロール)
+function growT() {
+  const ta = document.getElementById('tText');
+  if (!ta) return;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const max = Math.round(vh * 0.5);
+  ta.style.height = 'auto';
+  const h = ta.scrollHeight + 2;
+  ta.style.height = Math.min(Math.max(h, 42), max) + 'px';
+  ta.style.overflowY = h > max ? 'auto' : 'hidden';
 }
 
 let noteOpen = false;
@@ -875,6 +892,15 @@ function renderCr() {
 async function crCopy(i) { try { await navigator.clipboard.writeText(CR[i].text); toast('コピーしました'); } catch (e) { toast('コピーできませんでした'); } }
 async function crDone(i) { try { CR = (await call('crDone', CR[i].key)).items; renderCr(); toast('済みにしました'); } catch (e) { toast('できませんでした: ' + e.message, 4000); } }
 
+{ const ta = document.getElementById('tText');
+  ta.addEventListener('input', growT);
+  ta.addEventListener('paste', () => setTimeout(growT, 0));
+  ta.addEventListener('focus', () => setTimeout(growT, 300));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', growT);
+  // 値をプログラムで変えたときも高さを合わせる
+  const desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+  Object.defineProperty(ta, 'value', { get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); setTimeout(growT, 0); } });
+}
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
 // 1秒ごとに「変わった？」を聞く。変わっていれば同じ返事で中身も届く(往復1回)。念のため15秒ごとにも全部読む
