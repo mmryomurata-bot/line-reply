@@ -281,6 +281,10 @@
   <div class="th-head"><button class="back" onclick="closeGuide()">‹</button><div class="nm">🏠 出勤前日のルーム案内</div></div>
   <div id="gBody"><div class="empty">読み込み中…</div></div>
 </div>
+<div id="crp" style="display:none;position:fixed;inset:0;background:#fff;z-index:60;overflow:auto">
+  <div class="th-head"><button class="back" onclick="closeCr()">‹</button><div class="nm">📩 手で送る予約</div></div>
+  <div id="crBody"><div class="empty">読み込み中…</div></div>
+</div>
 <div id="thread">
   <div class="th-head lh">
     <button class="back" onclick="closeThread()">‹</button>
@@ -441,7 +445,7 @@ function renderList() {
   const working = DATA.rows.filter(r => r.today);
   const todayHtml = working.length ? '<div class="summary" style="background:#eaf7ee;border-color:#bfe3c8;color:#1f6b3a"><b>🟢 本日出勤 ' + working.length + '人</b><br>' + working.map(r => esc(r.name)).join('、') + '</div>' : '';
   const rgHtml = '<div class="rgbar" onclick="openGuide()">🏠 ルーム案内' + (DATA.rgWait ? '　<span style="color:#c0392b">確認待ち ' + DATA.rgWait + '人</span>' : '') + '　›</div>';
-  document.getElementById('summary').innerHTML = ''; // 一覧はLINEと同じく名前・本文・時間だけ(2026-11-11 オーナー指示) // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
+  document.getElementById('summary').innerHTML = DATA.crMan && VIEW !== 'girls' ? '<div class="rgbar" style="background:#fdecea;color:#b3261e" onclick="openCr()">📩 手で送る予約 ' + DATA.crMan + '件　›</div>' : ''; // LINEで送れなかった予約だけ出す(2026-11-12) // 一覧はLINEと同じく名前・本文・時間だけ(2026-11-11 オーナー指示) // ルーム案内は自動で送るので入口は出さない(2026-11-11 オーナー指示) // 要返信の赤い枠は出さない(2026-11-09 オーナー指示)。人数はタブに出る
   // 返事待ち → 本日出勤 → その他 の順に区切って出す。返事待ちは待っている時間の長い順
   const wait = rows.filter(r => r.need).sort((x, y) => x.ts - y.ts);
   const rest = rows.filter(r => !r.need);
@@ -851,6 +855,25 @@ async function rgDecide(key, send) {
   try { const r = await call('rgDecide', key, send); toast(r.status === 'sent' ? '送りました' : send ? (G.late ? '送ります' : G.sendHour + '時に送ります') : '送らないにしました'); G = await call('rgList'); renderGuide(); }
   catch (e) { toast('できませんでした: ' + e.message, 4000); }
 }
+
+// ---------- 手で送る予約(公式LINEで送れなかったキャスト案内) ----------
+let CR = [];
+async function openCr() {
+  document.getElementById('crp').style.display = 'block';
+  try { CR = (await call('crList')).items; renderCr(); } catch (e) { document.getElementById('crBody').innerHTML = '<div class="empty">読み込めませんでした: ' + esc(e.message) + '</div>'; }
+}
+function closeCr() { document.getElementById('crp').style.display = 'none'; loadList(); }
+function renderCr() {
+  document.getElementById('crBody').innerHTML = CR.length ? CR.map((m, i) => `
+    <div class="gi">
+      <div class="nm">${esc(m.cast)}　<span style="font-weight:400;font-size:13px">${esc(m.date || '')}</span></div>
+      <div class="st" style="color:#b3261e">${esc(m.why)}</div>
+      <div class="gprev">${esc(m.text)}</div>
+      <div class="cbtns"><button class="cb send" onclick="crCopy(${i})">文をコピー</button><button class="cb" onclick="crDone(${i})">送った</button></div>
+    </div>`).join('') : '<div class="empty">手で送る予約はありません</div>';
+}
+async function crCopy(i) { try { await navigator.clipboard.writeText(CR[i].text); toast('コピーしました'); } catch (e) { toast('コピーできませんでした'); } }
+async function crDone(i) { try { CR = (await call('crDone', CR[i].key)).items; renderCr(); toast('済みにしました'); } catch (e) { toast('できませんでした: ' + e.message, 4000); } }
 
 if (!K) { document.body.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#555;line-height:1.7">このページを開くには、通知にあるリンクから開いてください。</div>'; throw 0; }
 loadList();
