@@ -1084,8 +1084,6 @@ function plSumHtml() {
   </div>`;
   if (P.fut.n) h += `<div class="pnote">このあとの予約 ${P.fut.n}件（${yen(P.fut.s)}）は、始まった時点で入ります。</div>`;
   h += `<div class="card"><h3>損益（PL）</h3><table class="pl">
-    <tr><td>売上</td><td class="n">${yen(P.s)}</td><td class="r">100%</td></tr>
-    <tr class="sub"><td>女性報酬</td><td class="n">${yen(-P.p)}</td><td class="r">${pct(P.p)}</td></tr>
     <tr class="tot"><td>粗利</td><td class="n">${yen(gross)}</td><td class="r">${pct(gross)}</td></tr>
     <tr class="sub"><td>${sb}${P.refUnset ? ' <span class="neg" style="font-size:11px">未設定あり</span>' : ''}</td><td class="n">${yen(-P.refTotal)}</td><td class="r">${pct(P.refTotal)}</td></tr>
     ${cats.map(c => `<tr class="sub"><td>${esc(c)}</td><td class="n">${yen(-P.byCat[c])}</td><td class="r">${pct(P.byCat[c])}</td></tr>`).join('')}
@@ -1162,8 +1160,12 @@ function plRefHtml() {
   });
   h += '</div>';
   const none = P.casts.filter(c => !c.ref);
-  if (none.length) h += `<div class="card"><h3>この月、紹介者が台帳に無い女性</h3>${none.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本</div></div></div>`).join('')}<div class="d" style="font-size:12px;color:#999;margin-top:6px">紹介料が要る人なら、台帳の「紹介者」を入れると自動で上に入ります。</div></div>`;
+  const ex = P.refExtra || {}, opt = v => `<option value="">紹介者なし</option>` + P.refNames.map(n => `<option ${n === v ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  if (none.length || Object.keys(ex).length) h += `<div class="card"><h3>台帳に紹介者が無い女性</h3>${none.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">この月 ${c.n}本</div></div><select onchange="refExtra('${esc(c.c)}', this.value)" style="font-size:14px;padding:6px;border:1px solid #e3e3e3;border-radius:8px">${opt('')}</select></div>`).join('')}${Object.keys(ex).map(g => `<div class="lrow"><div class="m"><div class="t">${esc(g)}</div><div class="d">ここで紹介者を入れた人</div></div><select onchange="refExtra('${esc(g)}', this.value)" style="font-size:14px;padding:6px;border:1px solid #e3e3e3;border-radius:8px">${opt(ex[g])}</select></div>`).join('')}<div class="d" style="font-size:12px;color:#999;margin-top:6px">台帳に行が無い人も、ここで紹介者を選ぶとSBに入ります。台帳に紹介者を入れても同じです。</div></div>`;
   return h;
+}
+async function refExtra(g, ref) {
+  try { await call('plRefExtra', g, ref); toast('保存しました'); PL = null; plLoad(); } catch (x) { toast('保存できませんでした: ' + (x.message || x), 5000); }
 }
 async function refRuleAll() {
   const t = val('rtAll'), v = Number(val('rvAll'));
