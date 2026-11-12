@@ -278,6 +278,21 @@
   .kpis { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .kpi { background:#fff; border-radius:14px; padding:12px 14px; }
   .kpi .l { font-size:12px; color:#888; font-weight:700; } .kpi .v { font-size:22px; font-weight:800; margin-top:2px; letter-spacing:-.3px; } .kpi .s { font-size:11.5px; color:#999; margin-top:2px; }
+  /* PL概要の見た目(2026-11-12 店落ち・利益) */
+  .hero { background:#fff; border-radius:16px; margin:12px; padding:16px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  .hero .l { font-size:13px; color:#666; font-weight:800; }
+  .hero .v { font-size:36px; font-weight:900; letter-spacing:-.6px; margin:2px 0 12px; font-variant-numeric:tabular-nums; }
+  .eq { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .eq .it { background:#f4f5f7; border-radius:10px; padding:7px 9px; display:flex; flex-direction:column; line-height:1.3; font-size:11.5px; color:#777; font-weight:700; flex:1; min-width:0; }
+  .eq .it b { font-size:14px; color:#111; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .eq .op { color:#bbb; font-weight:900; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:1px; }
+  .fc .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fc .box { border-radius:12px; padding:11px 12px; background:#f7f8fa; border-top:4px solid; }
+  .fc .box .l { font-size:12px; font-weight:800; color:#555; } .fc .box .v { font-size:21px; font-weight:900; margin-top:2px; letter-spacing:-.3px; font-variant-numeric:tabular-nums; } .fc .box .s { font-size:11px; color:#999; margin-top:2px; }
+  .pbar { height:10px; background:#eef0f3; border-radius:6px; overflow:hidden; margin:14px 0 5px; } .pbar i { display:block; height:100%; border-radius:6px; }
+  .pcap { display:flex; justify-content:space-between; font-size:11.5px; color:#888; }
+  #appPl { padding-bottom:calc(110px + env(safe-area-inset-bottom)); }
   .kpi.big { grid-column:1 / -1; } .kpi.big .v { font-size:30px; }
   .neg { color:#d93025 !important; }
   table.pl { width:100%; border-collapse:collapse; font-size:14px; }
@@ -1074,26 +1089,42 @@ function plRender() {
 }
 const sbLabel = () => (PL && PL.sbYm ? +PL.sbYm.slice(5) : '') + '月のSB';
 function plSumHtml() {
-  const P = PL, gross = P.s - P.p, pct = v => P.s ? Math.round(v / P.s * 1000) / 10 + '%' : '', sb = sbLabel();
+  // 2026-11-12 オーナー指示: 言葉は「店落ち」(キャスカンの利益)と「利益」(店落ち−SB−経費)。ぱっと見で分かる形に
+  const P = PL, gross = P.s - P.p, sb = sbLabel(), F = P.fc;
   const cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
-  let h = `<div class="kpis" style="margin:12px">
-    <div class="kpi"><div class="l">粗利</div><div class="v ${gross < 0 ? 'neg' : ''}">${yen(gross)}</div><div class="s">売上−女性報酬・${pct(gross) || '—'}</div></div>
-    <div class="kpi"><div class="l">純利</div><div class="v ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</div><div class="s">粗利−SB−経費・${pct(P.profit) || '—'}</div></div>
-    <div class="kpi"><div class="l">${sb}</div><div class="v">${yen(P.refTotal)}</div><div class="s">${P.refUnset ? '<span class="neg">決まり未設定 ' + P.refUnset + '人</span>' : '今月末に払う分'}</div></div>
-    <div class="kpi"><div class="l">経費</div><div class="v">${yen(P.exp)}</div><div class="s">固定 ${yen((P.fixed || {}).total || 0)}・ほか ${P.items.length}件</div></div>
+  const neg = v => v < 0 ? 'neg' : '';
+  let h = `<div class="hero">
+    <div class="l">${+P.ym.slice(5)}月の利益${F ? '（' + +F.upto.slice(5, 7) + '/' + +F.upto.slice(8) + 'まで）' : ''}</div>
+    <div class="v ${neg(P.profit)}">${yen(P.profit)}</div>
+    <div class="eq">
+      <div class="it"><span><i class="dot" style="background:${C_G}"></i>店落ち</span><b>${yen(gross)}</b></div><span class="op">−</span>
+      <div class="it"><span>${sb}</span><b>${yen(P.refTotal)}</b></div><span class="op">−</span>
+      <div class="it"><span>経費</span><b>${yen(P.exp)}</b></div>
+    </div>
+    ${P.refUnset ? '<div class="pnote neg" style="padding:8px 0 0">SBの決まりが未設定の人が ' + P.refUnset + '人います</div>' : ''}
   </div>`;
-  if (P.fut.n) h += `<div class="pnote">このあとの予約 ${P.fut.n}件（${yen(P.fut.s)}）は、始まった時点で入ります。</div>`;
+  if (F) {
+    const pc = F.g > 0 ? Math.max(0, Math.min(100, Math.round(gross / F.g * 100))) : 0;
+    h += `<div class="card fc"><h3>月末予想<span class="chip">残り${F.left}日</span></h3>
+      <div class="two">
+        <div class="box" style="border-top-color:${C_G}"><div class="l">店落ち</div><div class="v">${yen(F.g)}</div><div class="s">1日平均 ${yen(F.avg)}</div></div>
+        <div class="box" style="border-top-color:${C_P}"><div class="l">利益</div><div class="v ${neg(F.profit)}">${yen(F.profit)}</div><div class="s">店落ち−SB−経費</div></div>
+      </div>
+      <div class="pbar"><i style="width:${pc}%;background:${C_G}"></i></div>
+      <div class="pcap"><span>いまの店落ち ${yen(gross)}</span><span>予想の${pc}%</span></div>
+    </div>`;
+  }
   h += `<div class="card"><h3>損益（PL）</h3><table class="pl">
-    <tr class="tot"><td>粗利</td><td class="n">${yen(gross)}</td><td class="r">${pct(gross)}</td></tr>
-    <tr class="sub"><td>${sb}${P.refUnset ? ' <span class="neg" style="font-size:11px">未設定あり</span>' : ''}</td><td class="n">${yen(-P.refTotal)}</td><td class="r">${pct(P.refTotal)}</td></tr>
-    ${cats.map(c => `<tr class="sub"><td>${esc(c)}</td><td class="n">${yen(-P.byCat[c])}</td><td class="r">${pct(P.byCat[c])}</td></tr>`).join('')}
+    <tr class="tot"><td><i class="dot" style="background:${C_G}"></i>店落ち</td><td class="n">${yen(gross)}</td><td class="r"></td></tr>
+    <tr class="sub"><td>${sb}${P.refUnset ? ' <span class="neg" style="font-size:11px">未設定あり</span>' : ''}</td><td class="n">${yen(-P.refTotal)}</td><td class="r"></td></tr>
+    ${cats.map(c => `<tr class="sub"><td>${esc(c)}</td><td class="n">${yen(-P.byCat[c])}</td><td class="r"></td></tr>`).join('')}
     ${cats.length ? '' : '<tr class="sub"><td>経費</td><td class="n">¥0</td><td class="r"></td></tr>'}
-    <tr class="fin"><td>純利</td><td class="n ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</td><td class="r">${pct(P.profit)}</td></tr>
+    <tr class="fin"><td><i class="dot" style="background:${C_P}"></i>利益</td><td class="n ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</td><td class="r"></td></tr>
   </table></div>`;
-  h += `<div class="card"><h3>日別の粗利</h3><div class="chart" id="chDay"></div></div>`;
-  h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_G}"></i>粗利</span><span><i style="background:${C_P}"></i>純利</span></div><div class="chart" id="chMon"></div></div>`;
-  h += `<div class="card"><h3>女性別の粗利</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s - c.p)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
-  h += `<div class="pnote">粗利はキャスカンの予約（キャンセル以外・始まった分）の売上−女性報酬。SBは前の月の本数×決まりで、今月末に払う分として入ります。朝5時までは前の日に数えます。${esc(P.at)} 時点</div>`;
+  h += `<div class="card"><h3>日別の店落ち</h3><div class="chart" id="chDay"></div></div>`;
+  h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_G}"></i>店落ち</span><span><i style="background:${C_P}"></i>利益</span></div><div class="chart" id="chMon"></div></div>`;
+  h += `<div class="card"><h3>女性別の店落ち</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s - c.p)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
+  h += `<div class="pnote">店落ちはキャスカンのレポートの「利益」（女性別は「店舗」）をそのまま使っています。利益＝店落ち−SB−経費。SBは前の月の本数×決まりで、今月末に払う分です。月末予想は、今日までの店落ちの1日平均で残りの日を足したもの（経費は固定費1か月分＋入っている分）。${esc(P.at)} 時点</div>`;
   return h;
 }
 function plCharts() {
@@ -1101,13 +1132,13 @@ function plCharts() {
   const map = {}; P.days.forEach(d => { map[d.d] = d; });
   const ds = [], vs = [];
   for (let i = 1; i <= nd; i++) { const k = P.ym + '-' + String(i).padStart(2, '0'); ds.push(k); vs.push(map[k] ? map[k].s : 0); }
-  barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '粗利', color: C_G, vals: ds.map(k => map[k] ? map[k].s - map[k].p : 0) }],
-    i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `粗利 ${yen(d.s - d.p)}<br>${d.n}本` : '予約なし'); },
+  barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '店落ち', color: C_G, vals: ds.map(k => map[k] ? map[k].s - map[k].p : 0) }],
+    i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `店落ち ${yen(d.s - d.p)}<br>${d.n}本` : '予約なし'); },
     { lab: i => i === 0 || (i + 1) % 5 === 0 });
   let T = P.trend.map(t => Object.assign({}, t, { ref: t.ref || 0, profit: t.profit !== undefined ? t.profit : t.s - t.p - (t.ref || 0) - t.exp }));
   while (T.length > 2 && !T[0].s && !T[0].exp) T = T.slice(1); // 開店前の空の月は出さない
-  barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '粗利', color: C_G, vals: T.map(t => t.s - t.p) }, { name: '純利', color: C_P, vals: T.map(t => t.profit) }],
-    i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>粗利 ${yen(t.s - t.p)}（${t.n}本）<br>前月のSB ${yen(t.ref)}・経費 ${yen(t.exp)}<br><b>純利 ${yen(t.profit)}</b>`; });
+  barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '店落ち', color: C_G, vals: T.map(t => t.s - t.p) }, { name: '利益', color: C_P, vals: T.map(t => t.profit) }],
+    i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>店落ち ${yen(t.s - t.p)}（${t.n}本）<br>前月のSB ${yen(t.ref)}・経費 ${yen(t.exp)}<br><b>利益 ${yen(t.profit)}</b>`; });
 }
 function plExpHtml() {
   const P = PL, cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
