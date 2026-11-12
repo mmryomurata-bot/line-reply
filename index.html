@@ -1040,7 +1040,7 @@ function barChart(el, cats, series, tip, opt) {
 }
 
 // ---------- PL ----------
-const C_S = '#2f6fd1', C_P = '#e8833a';
+const C_S = '#2f6fd1', C_G = '#17a38c', C_P = '#e8833a';
 let PL = null, PLTAB = 'sum';
 let PLYM = new Date(Date.now() + 9 * 3600000 - 5 * 3600000).toISOString().slice(0, 7);
 try { PLTAB = localStorage.getItem('bhPlTab') || 'sum'; } catch (e) {}
@@ -1073,7 +1073,8 @@ function plSumHtml() {
   const P = PL, gross = P.s - P.p, pct = v => P.s ? Math.round(v / P.s * 1000) / 10 + '%' : '';
   const cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
   let h = `<div class="kpis" style="margin:12px">
-    <div class="kpi big"><div class="l">利益</div><div class="v ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</div><div class="s">利益率 ${pct(P.profit) || '—'}</div></div>
+    <div class="kpi"><div class="l">粗利</div><div class="v ${gross < 0 ? 'neg' : ''}">${yen(gross)}</div><div class="s">売上−女性報酬・${pct(gross) || '—'}</div></div>
+    <div class="kpi"><div class="l">純利</div><div class="v ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</div><div class="s">粗利−紹介料−経費・${pct(P.profit) || '—'}</div></div>
     <div class="kpi"><div class="l">売上</div><div class="v">${yen(P.s)}</div><div class="s">${P.n}本・1本あたり ${P.n ? yen(P.s / P.n) : '—'}</div></div>
     <div class="kpi"><div class="l">女性報酬</div><div class="v">${yen(P.p)}</div><div class="s">売上の ${pct(P.p) || '—'}</div></div>
     <div class="kpi"><div class="l">紹介料</div><div class="v">${yen(P.refTotal)}</div><div class="s">${P.refUnset ? '<span class="neg">決まり未設定 ' + P.refUnset + '人</span>' : P.refs.length + '人の紹介者'}</div></div>
@@ -1087,10 +1088,10 @@ function plSumHtml() {
     <tr class="sub"><td>紹介料${P.refUnset ? ' <span class="neg" style="font-size:11px">未設定あり</span>' : ''}</td><td class="n">${yen(-P.refTotal)}</td><td class="r">${pct(P.refTotal)}</td></tr>
     ${cats.map(c => `<tr class="sub"><td>${esc(c)}</td><td class="n">${yen(-P.byCat[c])}</td><td class="r">${pct(P.byCat[c])}</td></tr>`).join('')}
     ${cats.length ? '' : '<tr class="sub"><td>経費</td><td class="n">¥0</td><td class="r"></td></tr>'}
-    <tr class="fin"><td>利益</td><td class="n ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</td><td class="r">${pct(P.profit)}</td></tr>
+    <tr class="fin"><td>純利</td><td class="n ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</td><td class="r">${pct(P.profit)}</td></tr>
   </table></div>`;
-  h += `<div class="card"><h3>日別の売上</h3><div class="chart" id="chDay"></div></div>`;
-  h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_S}"></i>売上</span><span><i style="background:${C_P}"></i>利益</span></div><div class="chart" id="chMon"></div></div>`;
+  h += `<div class="card"><h3>日別の売上・粗利</h3><div class="legend"><span><i style="background:${C_S}"></i>売上</span><span><i style="background:${C_G}"></i>粗利</span></div><div class="chart" id="chDay"></div></div>`;
+  h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_S}"></i>売上</span><span><i style="background:${C_G}"></i>粗利</span><span><i style="background:${C_P}"></i>純利</span></div><div class="chart" id="chMon"></div></div>`;
   h += `<div class="card"><h3>女性別</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日・報酬 ${yen(c.p)}${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
   h += `<div class="pnote">売上・女性報酬はキャスカンの予約（キャンセル以外・始まった分）から。朝5時までは前の日に数えます。${esc(P.at)} 時点</div>`;
   return h;
@@ -1100,13 +1101,13 @@ function plCharts() {
   const map = {}; P.days.forEach(d => { map[d.d] = d; });
   const ds = [], vs = [];
   for (let i = 1; i <= nd; i++) { const k = P.ym + '-' + String(i).padStart(2, '0'); ds.push(k); vs.push(map[k] ? map[k].s : 0); }
-  barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '売上', color: C_S, vals: vs }],
-    i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `売上 ${yen(d.s)}<br>報酬 ${yen(d.p)}<br>${d.n}本` : '予約なし'); },
+  barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '売上', color: C_S, vals: vs }, { name: '粗利', color: C_G, vals: ds.map(k => map[k] ? map[k].s - map[k].p : 0) }],
+    i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `売上 ${yen(d.s)}<br>報酬 ${yen(d.p)}<br>粗利 ${yen(d.s - d.p)}<br>${d.n}本` : '予約なし'); },
     { lab: i => i === 0 || (i + 1) % 5 === 0 });
   let T = P.trend.map(t => Object.assign({}, t, { ref: t.ref || 0, profit: t.profit !== undefined ? t.profit : t.s - t.p - (t.ref || 0) - t.exp }));
   while (T.length > 2 && !T[0].s && !T[0].exp) T = T.slice(1); // 開店前の空の月は出さない
-  barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '売上', color: C_S, vals: T.map(t => t.s) }, { name: '利益', color: C_P, vals: T.map(t => t.profit) }],
-    i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>売上 ${yen(t.s)}（${t.n}本）<br>報酬 ${yen(t.p)}・紹介料 ${yen(t.ref)}<br>経費 ${yen(t.exp)}<br><b>利益 ${yen(t.profit)}</b>`; });
+  barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '売上', color: C_S, vals: T.map(t => t.s) }, { name: '粗利', color: C_G, vals: T.map(t => t.s - t.p) }, { name: '純利', color: C_P, vals: T.map(t => t.profit) }],
+    i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>売上 ${yen(t.s)}（${t.n}本）<br>報酬 ${yen(t.p)}<br>粗利 ${yen(t.s - t.p)}<br>紹介料 ${yen(t.ref)}・経費 ${yen(t.exp)}<br><b>純利 ${yen(t.profit)}</b>`; });
 }
 function plExpHtml() {
   const P = PL, cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
