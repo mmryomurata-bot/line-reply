@@ -310,6 +310,9 @@
   .qb { width:38px; height:38px; border-radius:50%; border:0; background:#f0f1f3; font-size:22px; font-weight:700; color:#111; }
   .pnote { font-size:12px; color:#999; padding:8px 16px 0; line-height:1.6; }
   .rule { display:flex; gap:6px; align-items:center; margin:8px 0 4px; } .rule select { flex:1.4; } .rule input { flex:1; min-width:0; }
+  .fxs { font-weight:800; font-size:14px; margin:16px 0 6px; } .fxb { background:#f6f7f9; border-radius:12px; padding:8px; margin-bottom:8px; }
+  .fxr { display:flex; gap:6px; align-items:center; margin:4px 0; } .fxr input, .fxr select { font-size:15px; padding:8px; border:1px solid #e3e3e3; border-radius:9px; background:#fff; flex:1; min-width:0; } .fxl { font-size:12px; color:#888; flex:none; }
+  .qb.sm { width:30px; height:30px; font-size:16px; flex:none; }
   .rule select, .rule input { font-size:15px; padding:8px; border:1px solid #e3e3e3; border-radius:9px; background:#fafafa; }
 </style>
 </head>
@@ -1078,7 +1081,7 @@ function plSumHtml() {
     <div class="kpi"><div class="l">売上</div><div class="v">${yen(P.s)}</div><div class="s">${P.n}本・1本あたり ${P.n ? yen(P.s / P.n) : '—'}</div></div>
     <div class="kpi"><div class="l">女性報酬</div><div class="v">${yen(P.p)}</div><div class="s">売上の ${pct(P.p) || '—'}</div></div>
     <div class="kpi"><div class="l">紹介料</div><div class="v">${yen(P.refTotal)}</div><div class="s">${P.refUnset ? '<span class="neg">決まり未設定 ' + P.refUnset + '人</span>' : P.refs.length + '人の紹介者'}</div></div>
-    <div class="kpi"><div class="l">経費</div><div class="v">${yen(P.exp)}</div><div class="s">${P.items.length}件</div></div>
+    <div class="kpi"><div class="l">経費</div><div class="v">${yen(P.exp)}</div><div class="s">固定 ${yen((P.fixed || {}).total || 0)}・ほか ${P.items.length}件</div></div>
   </div>`;
   if (P.fut.n) h += `<div class="pnote">このあとの予約 ${P.fut.n}件（${yen(P.fut.s)}）は、始まった時点で入ります。</div>`;
   h += `<div class="card"><h3>損益（PL）</h3><table class="pl">
@@ -1111,9 +1114,9 @@ function plCharts() {
 }
 function plExpHtml() {
   const P = PL, cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
-  let h = `<div class="card"><h3>区分ごと<span>${yen(P.exp)}</span></h3>${cats.length ? cats.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c)}</div></div><div class="a">${yen(P.byCat[c])}</div></div>`).join('') : '<div class="d" style="color:#999">まだありません。右下の「＋ 経費」から入れてください</div>'}</div>`;
-  h += `<div class="card"><h3>明細</h3>${P.items.map((it, i) => `<div class="lrow" onclick="expEdit(${i})"><div class="m"><div class="t">${esc(it.t)}</div><div class="d">${it.d.slice(5).replace('-', '/')}・<span class="chip">${esc(it.cat)}</span>${it.to ? '・' + esc(it.to) : ''}${it.memo ? '・' + esc(it.memo) : ''}</div></div><div class="a">${yen(it.a)}</div></div>`).join('') || '<div class="d" style="color:#999">この月の経費はありません</div>'}</div>`;
-  h += `<div class="pnote">経費はNotionの「経費」表にも入ります（Notionで直しても反映されます）。紹介料は「紹介料」タブで自動計算するので、ここには入れません。</div>`;
+  let h = fxCardHtml() + `<div class="card"><h3>区分ごと（固定費こみ）<span>${yen(P.exp)}</span></h3>${cats.length ? cats.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c)}</div></div><div class="a">${yen(P.byCat[c])}</div></div>`).join('') : '<div class="d" style="color:#999">まだありません。右下の「＋ 経費」から入れてください</div>'}</div>`;
+  h += `<div class="card"><h3>手で入れた経費</h3>${P.items.map((it, i) => `<div class="lrow" onclick="expEdit(${i})"><div class="m"><div class="t">${esc(it.t)}</div><div class="d">${it.d.slice(5).replace('-', '/')}・<span class="chip">${esc(it.cat)}</span>${it.to ? '・' + esc(it.to) : ''}${it.memo ? '・' + esc(it.memo) : ''}</div></div><div class="a">${yen(it.a)}</div></div>`).join('') || '<div class="d" style="color:#999">この月の経費はありません</div>'}</div>`;
+  h += `<div class="pnote">毎月の固定費（家賃・名義料・ホームページ・広告・業務委託料など）は自動で入ります。水道光熱費など毎月変わるものは右下の「＋ 経費」から入れてください（Notionの「経費」表にも入ります）。紹介料は「紹介料」タブで自動計算します。</div>`;
   return h;
 }
 let EXPCAT = 'その他';
@@ -1144,6 +1147,8 @@ async function expDel(id) {
 function plRefHtml() {
   const P = PL, types = P.refTypes;
   let h = `<div class="pnote">紹介者ごとに紹介料の決まりを入れると、この月の売上・本数・出勤日数から自動で計算します。紹介者は台帳（問い合わせ台帳）の「紹介者」欄から取っています。</div>`;
+  const cr = (P.rules || {})['*'] || {};
+  h += `<div class="card"><h3>全員共通の決まり</h3><div class="rule"><select id="rtAll"><option value="">決まりなし</option>${Object.keys(types).map(t => `<option value="${t}" ${cr.type === t ? 'selected' : ''}>${types[t]}</option>`).join('')}</select><input id="rvAll" inputmode="decimal" value="${cr.type ? cr.v : ''}" placeholder="数字"><button class="pbtn sm" onclick="refRuleAll()">保存</button></div><div class="d" style="font-size:12px;color:#999">紹介者ごとの決まりを入れた人は、そちらが優先されます。</div></div>`;
   h += `<div class="card"><h3>この月の紹介料<span>${yen(P.refTotal)}</span></h3>`;
   if (!P.refs.length) h += '<div class="d" style="color:#999">この月に紹介者のついた女性の売上はありません</div>';
   P.refs.forEach((r, i) => {
@@ -1151,7 +1156,7 @@ function plRefHtml() {
     h += `<div style="padding:12px 0;border-bottom:1px solid #eee">
       <div style="display:flex;justify-content:space-between;align-items:center"><div class="t" style="font-weight:800;font-size:16px">${esc(r.ref)}</div><div class="a" style="font-weight:800;font-size:18px">${r.fee === null ? '<span class="neg" style="font-size:13px">決まり未設定</span>' : yen(r.fee)}</div></div>
       <div class="d" style="font-size:12px;color:#999;margin-top:2px">売上 ${yen(r.s)}・${r.n}本・のべ${r.days}日</div>
-      <div class="rule"><select id="rt${i}"><option value="">決まりなし</option>${Object.keys(types).map(t => `<option value="${t}" ${rl.type === t ? 'selected' : ''}>${types[t]}</option>`).join('')}</select><input id="rv${i}" inputmode="decimal" value="${rl.type ? rl.v : ''}" placeholder="数字"><button class="pbtn sm" onclick="refRule(${i})">保存</button></div>
+      <div class="rule"><select id="rt${i}"><option value="">${cr.type ? '共通の決まり' : '決まりなし'}</option>${Object.keys(types).map(t => `<option value="${t}" ${rl.type === t ? 'selected' : ''}>${types[t]}</option>`).join('')}</select><input id="rv${i}" inputmode="decimal" value="${rl.type ? rl.v : ''}" placeholder="数字"><button class="pbtn sm" onclick="refRule(${i})">保存</button></div>
       ${r.casts.map(c => `<div class="lrow" style="padding:6px 0"><div class="m"><div class="t" style="font-size:14px">${esc(c.c)}</div><div class="d">${yen(c.s)}・${c.n}本・${c.days}日</div></div><div class="a" style="font-size:14px">${c.fee === null || c.fee === undefined ? '—' : yen(c.fee)}</div></div>`).join('')}
       <button class="pbtn sm ${r.paid ? 'g' : ''}" style="margin-top:6px" onclick="refPaid(${i}, ${r.paid ? 'false' : 'true'})">${r.paid ? '✓ 支払済み（' + esc(r.paid) + '）' : '支払済みにする'}</button>
     </div>`;
@@ -1160,6 +1165,11 @@ function plRefHtml() {
   const none = P.casts.filter(c => !c.ref);
   if (none.length) h += `<div class="card"><h3>紹介者が台帳に無い女性</h3>${none.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本</div></div><div class="a">${yen(c.s)}</div></div>`).join('')}<div class="d" style="font-size:12px;color:#999;margin-top:6px">紹介料が要る人なら、台帳の「紹介者」を入れると自動で上に入ります。</div></div>`;
   return h;
+}
+async function refRuleAll() {
+  const t = val('rtAll'), v = Number(val('rvAll'));
+  if (t && !(v > 0)) return toast('数字を入れてください');
+  try { await call('plRefRule', '*', t, v); toast('保存しました'); PL = null; plLoad(); } catch (x) { toast('保存できませんでした: ' + (x.message || x), 5000); }
 }
 async function refRule(i) {
   const r = PL.refs[i], t = val('rt' + i), v = Number(val('rv' + i));
@@ -1226,6 +1236,50 @@ async function stSave(id) {
 async function stDel(id) {
   if (!confirm('この品目を消しますか？（Notionのゴミ箱に入ります）')) return;
   try { await call('stockDel', id); closeSheet(); toast('消しました'); stLoad(); } catch (x) { toast('消せませんでした: ' + (x.message || x), 5000); }
+}
+// ---- 毎月の固定費(自動で入る)の設定 2026-11-12 ----
+let FX = null;
+const fxYm = v => v ? v.replace('-', '年').replace(/年0?/, '年') + '月' : '';
+function fxCardHtml() {
+  const f = PL.fixed || { items: [], total: 0, miss: [] };
+  return `<div class="card"><h3>毎月の固定費（自動）<span>${yen(f.total)}</span></h3>
+    ${f.items.map(it => `<div class="lrow" style="padding:7px 0"><div class="m"><div class="t" style="font-size:14px">${esc(it.t)}</div><div class="d"><span class="chip">${esc(it.cat)}</span></div></div><div class="a" style="font-size:14px">${yen(it.a)}</div></div>`).join('') || '<div class="d" style="color:#999">この月にかかる固定費はありません</div>'}
+    ${f.miss.length ? `<div style="font-size:12.5px;color:#d93025;margin-top:8px">金額が未入力：${f.miss.map(esc).join('・')}</div>` : ''}
+    <button class="pbtn g sm" style="margin-top:10px;width:100%" onclick="fxOpen()">物件・店舗・固定費の設定</button></div>`;
+}
+function fxOpen() { FX = JSON.parse(JSON.stringify(PL.fixedCfg)); fxRender(); }
+function fxSet(path, v) { const ks = path.split('.'); let o = FX; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = v; }
+function fxAdd(kind, pi) {
+  const nid = kind[0] + Date.now();
+  if (kind === 'store') FX.stores.push({ id: nid, name: '新しい店舗', from: PLYM, to: '' });
+  if (kind === 'prop') FX.props.push({ id: nid, name: '新しい物件', store: (FX.stores[0] || {}).id || '', from: PLYM, to: '', lines: [{ t: '家賃', cat: '家賃', a: 0 }, { t: '共益費', cat: '家賃', a: 0 }, { t: '名義料', cat: '名義代', a: 30000 }, { t: '月額保証料', cat: '家賃', a: 0 }, { t: '口座振替', cat: '家賃', a: 0 }] });
+  if (kind === 'line') FX.props[pi].lines.push({ t: '', cat: '家賃', a: 0 });
+  if (kind === 'item') FX.items.push({ id: nid, t: '', cat: 'その他', a: 0, unit: 'month', from: PLYM, to: '' });
+  fxRender();
+}
+function fxDel(path) { const ks = path.split('.'); let o = FX; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o.splice(+ks[ks.length - 1], 1); fxRender(); }
+function fxRender() {
+  const inp = (path, v, ph, type, w) => `<input ${type ? 'type="' + type + '"' : ''} ${type === 'num' ? 'inputmode="numeric"' : ''} value="${esc(v)}" placeholder="${ph || ''}" style="${w ? 'flex:' + w + ';' : ''}min-width:0" oninput="fxSet('${path}', ${type === 'num' ? 'Number(this.value.replace(/[^\\d]/g,\'\'))||0' : 'this.value'})">`;
+  const sel = (path, v, opts) => `<select onchange="fxSet('${path}', this.value)">${opts.map(o => `<option value="${esc(o[0])}" ${o[0] === v ? 'selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`;
+  const catOpts = PL.cats.map(c => [c, c]);
+  const period = (base, x) => `<div class="fxr"><span class="fxl">開始</span><input type="month" value="${x.from || ''}" onchange="fxSet('${base}.from', this.value)"><span class="fxl">終了</span><input type="month" value="${x.to || ''}" onchange="fxSet('${base}.to', this.value)"></div>`;
+  let h = `<div class="ttl">物件・店舗・固定費</div><div style="font-size:12px;color:#888;margin:-6px 0 10px">ここの金額は毎月自動で経費に入ります。終了月を入れると、その月の次から止まります。</div>`;
+  h += `<div class="fxs">店舗</div>` + FX.stores.map((s, i) => `<div class="fxb"><div class="fxr">${inp('stores.' + i + '.name', s.name, '店舗名')}<button class="qb sm" onclick="fxDel('stores.${i}')">×</button></div>${period('stores.' + i, s)}</div>`).join('') + `<button class="pbtn g sm" onclick="fxAdd('store')">＋ 店舗を追加</button>`;
+  h += `<div class="fxs">物件</div>` + FX.props.map((p, i) => {
+    const tot = p.lines.reduce((a, l) => a + (Number(l.a) || 0), 0);
+    return `<div class="fxb"><div class="fxr">${inp('props.' + i + '.name', p.name, '物件名')}${sel('props.' + i + '.store', p.store, FX.stores.map(s => [s.id, s.name]))}<button class="qb sm" onclick="if(confirm('この物件を消しますか？（解約なら終了月を入れるほうが、過去の月の数字が残ります）'))fxDel('props.${i}')">×</button></div>${period('props.' + i, p)}
+      ${p.lines.map((l, j) => `<div class="fxr">${inp('props.' + i + '.lines.' + j + '.t', l.t, '項目', '', 1.3)}${sel('props.' + i + '.lines.' + j + '.cat', l.cat, catOpts)}${inp('props.' + i + '.lines.' + j + '.a', l.a || '', '円', 'num', 1)}<button class="qb sm" onclick="fxDel('props.${i}.lines.${j}')">×</button></div>`).join('')}
+      <div class="fxr" style="justify-content:space-between"><button class="pbtn g sm" onclick="fxAdd('line', ${i})">＋ 行</button><b style="font-size:13px">月額 ${yen(tot)}</b></div></div>`;
+  }).join('') + `<button class="pbtn g sm" onclick="fxAdd('prop')">＋ 物件を追加</button>`;
+  h += `<div class="fxs">そのほかの毎月</div>` + FX.items.map((it, i) => `<div class="fxb"><div class="fxr">${inp('items.' + i + '.t', it.t, '項目', '', 1.4)}${inp('items.' + i + '.a', it.a || '', '円', 'num', 1)}<button class="qb sm" onclick="fxDel('items.${i}')">×</button></div>
+      <div class="fxr">${sel('items.' + i + '.cat', it.cat, catOpts)}${sel('items.' + i + '.unit', it.unit, [['store', '店舗ごと'], ['month', '月1回']])}</div>${period('items.' + i, it)}</div>`).join('') + `<button class="pbtn g sm" onclick="fxAdd('item')">＋ 追加</button>`;
+  h += `<div class="sbtns"><button class="pbtn g" onclick="closeSheet()">やめる</button><button class="pbtn" onclick="fxSave()">保存</button></div>`;
+  const box = document.getElementById('sheetBox'), st = box.scrollTop;
+  openSheet(h); box.scrollTop = st;
+}
+async function fxSave() {
+  try { await call('plFixedSave', FX); closeSheet(); toast('保存しました'); PL = null; plLoad(); }
+  catch (x) { toast('保存できませんでした: ' + (x.message || x), 5000); }
 }
 renderSw();
 if (APP !== 'inbox') setTimeout(() => setApp(APP), 0);
