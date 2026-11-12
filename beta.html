@@ -308,7 +308,7 @@
   .stk .q { font-size:22px; font-weight:800; min-width:44px; text-align:center; font-variant-numeric:tabular-nums; } .stk .q small { font-size:11px; color:#999; font-weight:700; display:block; margin-top:-2px; }
   .stk.low .q { color:#d93025; } .stk.low .t::after { content:'少ない'; margin-left:6px; font-size:10.5px; font-weight:800; color:#d93025; background:#fdecea; padding:2px 6px; border-radius:6px; vertical-align:2px; }
   .qb { width:38px; height:38px; border-radius:50%; border:0; background:#f0f1f3; font-size:22px; font-weight:700; color:#111; }
-  .note { font-size:12px; color:#999; padding:8px 16px 0; line-height:1.6; }
+  .pnote { font-size:12px; color:#999; padding:8px 16px 0; line-height:1.6; }
   .rule { display:flex; gap:6px; align-items:center; margin:8px 0 4px; } .rule select { flex:1.4; } .rule input { flex:1; min-width:0; }
   .rule select, .rule input { font-size:15px; padding:8px; border:1px solid #e3e3e3; border-radius:9px; background:#fafafa; }
 </style>
@@ -786,7 +786,7 @@ function cardHtml(t) {
   const lastIn = [...t.hist].reverse().find(m => m.d === 'in');
   let h = `<div class="card"><div class="card-h">🤖 返信案${t.dts ? '（' + (new Date(t.dts).toDateString() === new Date().toDateString() ? '' : fmt(t.dts) + ' ') + hm(t.dts) + '）' : ''}</div>`;
   // 相手の文はやりとりに出ているので、カードには出さない(2026-11-10 オーナー指示)
-  if (t.drafting) return h + '<div class="note">AIが返信案を作っています（Macが動いていれば1〜2分）</div></div>';
+  if (t.drafting) return h + '<div class="pnote">AIが返信案を作っています（Macが動いていれば1〜2分）</div></div>';
   // 目的とメモは出さない(2026-11-10 オーナー指示)
   const msgs = t.dmsgs || [];
   if (!msgs.length && !editing) {
@@ -1079,7 +1079,7 @@ function plSumHtml() {
     <div class="kpi"><div class="l">紹介料</div><div class="v">${yen(P.refTotal)}</div><div class="s">${P.refUnset ? '<span class="neg">決まり未設定 ' + P.refUnset + '人</span>' : P.refs.length + '人の紹介者'}</div></div>
     <div class="kpi"><div class="l">経費</div><div class="v">${yen(P.exp)}</div><div class="s">${P.items.length}件</div></div>
   </div>`;
-  if (P.fut.n) h += `<div class="note">このあとの予約 ${P.fut.n}件（${yen(P.fut.s)}）は、始まった時点で入ります。</div>`;
+  if (P.fut.n) h += `<div class="pnote">このあとの予約 ${P.fut.n}件（${yen(P.fut.s)}）は、始まった時点で入ります。</div>`;
   h += `<div class="card"><h3>損益（PL）</h3><table class="pl">
     <tr><td>売上</td><td class="n">${yen(P.s)}</td><td class="r">100%</td></tr>
     <tr class="sub"><td>女性報酬</td><td class="n">${yen(-P.p)}</td><td class="r">${pct(P.p)}</td></tr>
@@ -1092,7 +1092,7 @@ function plSumHtml() {
   h += `<div class="card"><h3>日別の売上</h3><div class="chart" id="chDay"></div></div>`;
   h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_S}"></i>売上</span><span><i style="background:${C_P}"></i>利益</span></div><div class="chart" id="chMon"></div></div>`;
   h += `<div class="card"><h3>女性別</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日・報酬 ${yen(c.p)}${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
-  h += `<div class="note">売上・女性報酬はキャスカンの予約（キャンセル以外・始まった分）から。朝5時までは前の日に数えます。${esc(P.at)} 時点</div>`;
+  h += `<div class="pnote">売上・女性報酬はキャスカンの予約（キャンセル以外・始まった分）から。朝5時までは前の日に数えます。${esc(P.at)} 時点</div>`;
   return h;
 }
 function plCharts() {
@@ -1103,7 +1103,8 @@ function plCharts() {
   barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '売上', color: C_S, vals: vs }],
     i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `売上 ${yen(d.s)}<br>報酬 ${yen(d.p)}<br>${d.n}本` : '予約なし'); },
     { lab: i => i === 0 || (i + 1) % 5 === 0 });
-  const T = P.trend;
+  let T = P.trend.map(t => Object.assign({}, t, { ref: t.ref || 0, profit: t.profit !== undefined ? t.profit : t.s - t.p - (t.ref || 0) - t.exp }));
+  while (T.length > 2 && !T[0].s && !T[0].exp) T = T.slice(1); // 開店前の空の月は出さない
   barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '売上', color: C_S, vals: T.map(t => t.s) }, { name: '利益', color: C_P, vals: T.map(t => t.profit) }],
     i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>売上 ${yen(t.s)}（${t.n}本）<br>報酬 ${yen(t.p)}・紹介料 ${yen(t.ref)}<br>経費 ${yen(t.exp)}<br><b>利益 ${yen(t.profit)}</b>`; });
 }
@@ -1111,7 +1112,7 @@ function plExpHtml() {
   const P = PL, cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
   let h = `<div class="card"><h3>区分ごと<span>${yen(P.exp)}</span></h3>${cats.length ? cats.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c)}</div></div><div class="a">${yen(P.byCat[c])}</div></div>`).join('') : '<div class="d" style="color:#999">まだありません。右下の「＋ 経費」から入れてください</div>'}</div>`;
   h += `<div class="card"><h3>明細</h3>${P.items.map((it, i) => `<div class="lrow" onclick="expEdit(${i})"><div class="m"><div class="t">${esc(it.t)}</div><div class="d">${it.d.slice(5).replace('-', '/')}・<span class="chip">${esc(it.cat)}</span>${it.to ? '・' + esc(it.to) : ''}${it.memo ? '・' + esc(it.memo) : ''}</div></div><div class="a">${yen(it.a)}</div></div>`).join('') || '<div class="d" style="color:#999">この月の経費はありません</div>'}</div>`;
-  h += `<div class="note">経費はNotionの「経費」表にも入ります（Notionで直しても反映されます）。紹介料は「紹介料」タブで自動計算するので、ここには入れません。</div>`;
+  h += `<div class="pnote">経費はNotionの「経費」表にも入ります（Notionで直しても反映されます）。紹介料は「紹介料」タブで自動計算するので、ここには入れません。</div>`;
   return h;
 }
 let EXPCAT = 'その他';
@@ -1141,7 +1142,7 @@ async function expDel(id) {
 }
 function plRefHtml() {
   const P = PL, types = P.refTypes;
-  let h = `<div class="note">紹介者ごとに紹介料の決まりを入れると、この月の売上・本数・出勤日数から自動で計算します。紹介者は台帳（問い合わせ台帳）の「紹介者」欄から取っています。</div>`;
+  let h = `<div class="pnote">紹介者ごとに紹介料の決まりを入れると、この月の売上・本数・出勤日数から自動で計算します。紹介者は台帳（問い合わせ台帳）の「紹介者」欄から取っています。</div>`;
   h += `<div class="card"><h3>この月の紹介料<span>${yen(P.refTotal)}</span></h3>`;
   if (!P.refs.length) h += '<div class="d" style="color:#999">この月に紹介者のついた女性の売上はありません</div>';
   P.refs.forEach((r, i) => {
@@ -1185,7 +1186,7 @@ function stRender() {
       <button class="pbtn sm g" onclick="stBuy(${i})">仕入</button></div>`).join('')
     : '<div class="empty" style="padding:30px 10px">まだ品目がありません。<br>右下の「＋ 品目を追加」から入れてください。<br><span style="font-size:12px">例：タオル・オイル・紙ショーツ・ティッシュ</span></div>'}</div>`;
   if (ST.log.length) h += `<div class="card"><h3>最近の動き</h3>${ST.log.slice(0, 15).map(l => `<div class="lrow" style="padding:6px 0"><div class="m"><div class="d" style="margin:0;color:#555;font-size:13px">${esc(l.at)}　${esc(l.name)} ${l.d > 0 ? '+' : ''}${l.d} → ${l.q}${l.cost ? '（経費 ' + yen(l.cost) + '）' : ''}</div></div></div>`).join('')}</div>`;
-  h += '<div class="note">在庫はNotionの「在庫」表にも入ります。「仕入」で金額を入れると、経費（備品・消耗品）にも自動で入ります。</div>';
+  h += '<div class="pnote">在庫はNotionの「在庫」表にも入ります。「仕入」で金額を入れると、経費（備品・消耗品）にも自動で入ります。</div>';
   document.getElementById('stBody').innerHTML = h;
 }
 async function stMove(i, d, cost) {
