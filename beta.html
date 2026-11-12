@@ -1062,7 +1062,7 @@ async function plLoad() {
   catch (e) { document.getElementById('plBody').innerHTML = `<div class="empty">読み込めませんでした<br>${esc(e.message || e)}</div>`; }
 }
 function plRender() {
-  const tabs = [['sum', '概要'], ['exp', '経費'], ['ref', '紹介料']];
+  const tabs = [['sum', '概要'], ['exp', '経費'], ['ref', 'SB']];
   document.getElementById('plTabs').innerHTML = tabs.map(t => `<button class="${t[0] === PLTAB ? 'on' : ''}" onclick="plSetTab('${t[0]}')">${t[1]}${t[0] === 'ref' && PL && PL.refUnset ? ' <span class="chip" style="background:#fdecea;color:#d93025">未設定' + PL.refUnset + '</span>' : ''}</button>`).join('');
   document.getElementById('plFab').style.display = PLTAB === 'ref' ? 'none' : '';
   if (!PL) return;
@@ -1072,15 +1072,14 @@ function plRender() {
   if (PLTAB === 'ref') b.innerHTML = plRefHtml();
   if (PLTAB === 'sum') plCharts();
 }
+const sbLabel = () => (PL && PL.sbYm ? +PL.sbYm.slice(5) : '') + '月のSB';
 function plSumHtml() {
-  const P = PL, gross = P.s - P.p, pct = v => P.s ? Math.round(v / P.s * 1000) / 10 + '%' : '';
+  const P = PL, gross = P.s - P.p, pct = v => P.s ? Math.round(v / P.s * 1000) / 10 + '%' : '', sb = sbLabel();
   const cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
   let h = `<div class="kpis" style="margin:12px">
     <div class="kpi"><div class="l">粗利</div><div class="v ${gross < 0 ? 'neg' : ''}">${yen(gross)}</div><div class="s">売上−女性報酬・${pct(gross) || '—'}</div></div>
-    <div class="kpi"><div class="l">純利</div><div class="v ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</div><div class="s">粗利−紹介料−経費・${pct(P.profit) || '—'}</div></div>
-    <div class="kpi"><div class="l">売上</div><div class="v">${yen(P.s)}</div><div class="s">${P.n}本・1本あたり ${P.n ? yen(P.s / P.n) : '—'}</div></div>
-    <div class="kpi"><div class="l">女性報酬</div><div class="v">${yen(P.p)}</div><div class="s">売上の ${pct(P.p) || '—'}</div></div>
-    <div class="kpi"><div class="l">紹介料</div><div class="v">${yen(P.refTotal)}</div><div class="s">${P.refUnset ? '<span class="neg">決まり未設定 ' + P.refUnset + '人</span>' : P.refs.length + '人の紹介者'}</div></div>
+    <div class="kpi"><div class="l">純利</div><div class="v ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</div><div class="s">粗利−SB−経費・${pct(P.profit) || '—'}</div></div>
+    <div class="kpi"><div class="l">${sb}</div><div class="v">${yen(P.refTotal)}</div><div class="s">${P.refUnset ? '<span class="neg">決まり未設定 ' + P.refUnset + '人</span>' : '今月末に払う分'}</div></div>
     <div class="kpi"><div class="l">経費</div><div class="v">${yen(P.exp)}</div><div class="s">固定 ${yen((P.fixed || {}).total || 0)}・ほか ${P.items.length}件</div></div>
   </div>`;
   if (P.fut.n) h += `<div class="pnote">このあとの予約 ${P.fut.n}件（${yen(P.fut.s)}）は、始まった時点で入ります。</div>`;
@@ -1088,15 +1087,15 @@ function plSumHtml() {
     <tr><td>売上</td><td class="n">${yen(P.s)}</td><td class="r">100%</td></tr>
     <tr class="sub"><td>女性報酬</td><td class="n">${yen(-P.p)}</td><td class="r">${pct(P.p)}</td></tr>
     <tr class="tot"><td>粗利</td><td class="n">${yen(gross)}</td><td class="r">${pct(gross)}</td></tr>
-    <tr class="sub"><td>紹介料${P.refUnset ? ' <span class="neg" style="font-size:11px">未設定あり</span>' : ''}</td><td class="n">${yen(-P.refTotal)}</td><td class="r">${pct(P.refTotal)}</td></tr>
+    <tr class="sub"><td>${sb}${P.refUnset ? ' <span class="neg" style="font-size:11px">未設定あり</span>' : ''}</td><td class="n">${yen(-P.refTotal)}</td><td class="r">${pct(P.refTotal)}</td></tr>
     ${cats.map(c => `<tr class="sub"><td>${esc(c)}</td><td class="n">${yen(-P.byCat[c])}</td><td class="r">${pct(P.byCat[c])}</td></tr>`).join('')}
     ${cats.length ? '' : '<tr class="sub"><td>経費</td><td class="n">¥0</td><td class="r"></td></tr>'}
     <tr class="fin"><td>純利</td><td class="n ${P.profit < 0 ? 'neg' : ''}">${yen(P.profit)}</td><td class="r">${pct(P.profit)}</td></tr>
   </table></div>`;
-  h += `<div class="card"><h3>日別の売上・粗利</h3><div class="legend"><span><i style="background:${C_S}"></i>売上</span><span><i style="background:${C_G}"></i>粗利</span></div><div class="chart" id="chDay"></div></div>`;
-  h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_S}"></i>売上</span><span><i style="background:${C_G}"></i>粗利</span><span><i style="background:${C_P}"></i>純利</span></div><div class="chart" id="chMon"></div></div>`;
-  h += `<div class="card"><h3>女性別</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日・報酬 ${yen(c.p)}${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
-  h += `<div class="pnote">売上・女性報酬はキャスカンの予約（キャンセル以外・始まった分）から。朝5時までは前の日に数えます。${esc(P.at)} 時点</div>`;
+  h += `<div class="card"><h3>日別の粗利</h3><div class="chart" id="chDay"></div></div>`;
+  h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_G}"></i>粗利</span><span><i style="background:${C_P}"></i>純利</span></div><div class="chart" id="chMon"></div></div>`;
+  h += `<div class="card"><h3>女性別の粗利</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s - c.p)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
+  h += `<div class="pnote">粗利はキャスカンの予約（キャンセル以外・始まった分）の売上−女性報酬。SBは前の月の本数×決まりで、今月末に払う分として入ります。朝5時までは前の日に数えます。${esc(P.at)} 時点</div>`;
   return h;
 }
 function plCharts() {
@@ -1104,19 +1103,19 @@ function plCharts() {
   const map = {}; P.days.forEach(d => { map[d.d] = d; });
   const ds = [], vs = [];
   for (let i = 1; i <= nd; i++) { const k = P.ym + '-' + String(i).padStart(2, '0'); ds.push(k); vs.push(map[k] ? map[k].s : 0); }
-  barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '売上', color: C_S, vals: vs }, { name: '粗利', color: C_G, vals: ds.map(k => map[k] ? map[k].s - map[k].p : 0) }],
-    i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `売上 ${yen(d.s)}<br>報酬 ${yen(d.p)}<br>粗利 ${yen(d.s - d.p)}<br>${d.n}本` : '予約なし'); },
+  barChart(document.getElementById('chDay'), ds.map(d => +d.slice(8)), [{ name: '粗利', color: C_G, vals: ds.map(k => map[k] ? map[k].s - map[k].p : 0) }],
+    i => { const d = map[ds[i]]; return `${m}/${i + 1}<br>` + (d ? `粗利 ${yen(d.s - d.p)}<br>${d.n}本` : '予約なし'); },
     { lab: i => i === 0 || (i + 1) % 5 === 0 });
   let T = P.trend.map(t => Object.assign({}, t, { ref: t.ref || 0, profit: t.profit !== undefined ? t.profit : t.s - t.p - (t.ref || 0) - t.exp }));
   while (T.length > 2 && !T[0].s && !T[0].exp) T = T.slice(1); // 開店前の空の月は出さない
-  barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '売上', color: C_S, vals: T.map(t => t.s) }, { name: '粗利', color: C_G, vals: T.map(t => t.s - t.p) }, { name: '純利', color: C_P, vals: T.map(t => t.profit) }],
-    i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>売上 ${yen(t.s)}（${t.n}本）<br>報酬 ${yen(t.p)}<br>粗利 ${yen(t.s - t.p)}<br>紹介料 ${yen(t.ref)}・経費 ${yen(t.exp)}<br><b>純利 ${yen(t.profit)}</b>`; });
+  barChart(document.getElementById('chMon'), T.map(t => +t.ym.slice(5) + '月'), [{ name: '粗利', color: C_G, vals: T.map(t => t.s - t.p) }, { name: '純利', color: C_P, vals: T.map(t => t.profit) }],
+    i => { const t = T[i]; return `${t.ym.replace('-', '年')}月<br>粗利 ${yen(t.s - t.p)}（${t.n}本）<br>前月のSB ${yen(t.ref)}・経費 ${yen(t.exp)}<br><b>純利 ${yen(t.profit)}</b>`; });
 }
 function plExpHtml() {
   const P = PL, cats = Object.keys(P.byCat).sort((a, c) => P.byCat[c] - P.byCat[a]);
   let h = fxCardHtml() + `<div class="card"><h3>区分ごと（固定費こみ）<span>${yen(P.exp)}</span></h3>${cats.length ? cats.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c)}</div></div><div class="a">${yen(P.byCat[c])}</div></div>`).join('') : '<div class="d" style="color:#999">まだありません。右下の「＋ 経費」から入れてください</div>'}</div>`;
   h += `<div class="card"><h3>手で入れた経費</h3>${P.items.map((it, i) => `<div class="lrow" onclick="expEdit(${i})"><div class="m"><div class="t">${esc(it.t)}</div><div class="d">${it.d.slice(5).replace('-', '/')}・<span class="chip">${esc(it.cat)}</span>${it.to ? '・' + esc(it.to) : ''}${it.memo ? '・' + esc(it.memo) : ''}</div></div><div class="a">${yen(it.a)}</div></div>`).join('') || '<div class="d" style="color:#999">この月の経費はありません</div>'}</div>`;
-  h += `<div class="pnote">毎月の固定費（家賃・名義料・ホームページ・広告・業務委託料など）は自動で入ります。水道光熱費など毎月変わるものは右下の「＋ 経費」から入れてください（Notionの「経費」表にも入ります）。紹介料は「紹介料」タブで自動計算します。</div>`;
+  h += `<div class="pnote">毎月の固定費（家賃・名義料・ホームページ・広告・業務委託料など）は自動で入ります。水道光熱費など毎月変わるものは右下の「＋ 経費」から入れてください（Notionの「経費」表にも入ります）。SB（紹介料）は「紹介料」タブで自動計算します。</div>`;
   return h;
 }
 let EXPCAT = 'その他';
@@ -1146,24 +1145,24 @@ async function expDel(id) {
 }
 function plRefHtml() {
   const P = PL, types = P.refTypes;
-  let h = `<div class="pnote">紹介者ごとに紹介料の決まりを入れると、この月の売上・本数・出勤日数から自動で計算します。紹介者は台帳（問い合わせ台帳）の「紹介者」欄から取っています。</div>`;
+  let h = `<div class="pnote">SB（紹介料）は、前の月に紹介した女性が接客した本数から計算し、この月の末に払う分として入ります（例：10月分を11月末に払う → 11月のPLに「10月のSB」）。紹介者は台帳（問い合わせ台帳）の「紹介者」欄から取っています。</div>`;
   const cr = (P.rules || {})['*'] || {};
   h += `<div class="card"><h3>全員共通の決まり</h3><div class="rule"><select id="rtAll"><option value="">決まりなし</option>${Object.keys(types).map(t => `<option value="${t}" ${cr.type === t ? 'selected' : ''}>${types[t]}</option>`).join('')}</select><input id="rvAll" inputmode="decimal" value="${cr.type ? cr.v : ''}" placeholder="数字"><button class="pbtn sm" onclick="refRuleAll()">保存</button></div><div class="d" style="font-size:12px;color:#999">紹介者ごとの決まりを入れた人は、そちらが優先されます。</div></div>`;
-  h += `<div class="card"><h3>この月の紹介料<span>${yen(P.refTotal)}</span></h3>`;
-  if (!P.refs.length) h += '<div class="d" style="color:#999">この月に紹介者のついた女性の売上はありません</div>';
+  h += `<div class="card"><h3>${sbLabel()}（${+P.ym.slice(5)}月末に払う）<span>${yen(P.refTotal)}</span></h3>`;
+  if (!P.refs.length) h += '<div class="d" style="color:#999">前の月に紹介者のついた女性の予約はありません</div>';
   P.refs.forEach((r, i) => {
     const rl = r.rule || {};
     h += `<div style="padding:12px 0;border-bottom:1px solid #eee">
       <div style="display:flex;justify-content:space-between;align-items:center"><div class="t" style="font-weight:800;font-size:16px">${esc(r.ref)}</div><div class="a" style="font-weight:800;font-size:18px">${r.fee === null ? '<span class="neg" style="font-size:13px">決まり未設定</span>' : yen(r.fee)}</div></div>
-      <div class="d" style="font-size:12px;color:#999;margin-top:2px">売上 ${yen(r.s)}・${r.n}本・のべ${r.days}日</div>
+      <div class="d" style="font-size:12px;color:#999;margin-top:2px">${+P.sbYm.slice(5)}月 ${r.n}本・のべ${r.days}日</div>
       <div class="rule"><select id="rt${i}"><option value="">${cr.type ? '共通の決まり' : '決まりなし'}</option>${Object.keys(types).map(t => `<option value="${t}" ${rl.type === t ? 'selected' : ''}>${types[t]}</option>`).join('')}</select><input id="rv${i}" inputmode="decimal" value="${rl.type ? rl.v : ''}" placeholder="数字"><button class="pbtn sm" onclick="refRule(${i})">保存</button></div>
-      ${r.casts.map(c => `<div class="lrow" style="padding:6px 0"><div class="m"><div class="t" style="font-size:14px">${esc(c.c)}</div><div class="d">${yen(c.s)}・${c.n}本・${c.days}日</div></div><div class="a" style="font-size:14px">${c.fee === null || c.fee === undefined ? '—' : yen(c.fee)}</div></div>`).join('')}
+      ${r.casts.map(c => `<div class="lrow" style="padding:6px 0"><div class="m"><div class="t" style="font-size:14px">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日</div></div><div class="a" style="font-size:14px">${c.fee === null || c.fee === undefined ? '—' : yen(c.fee)}</div></div>`).join('')}
       <button class="pbtn sm ${r.paid ? 'g' : ''}" style="margin-top:6px" onclick="refPaid(${i}, ${r.paid ? 'false' : 'true'})">${r.paid ? '✓ 支払済み（' + esc(r.paid) + '）' : '支払済みにする'}</button>
     </div>`;
   });
   h += '</div>';
   const none = P.casts.filter(c => !c.ref);
-  if (none.length) h += `<div class="card"><h3>紹介者が台帳に無い女性</h3>${none.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本</div></div><div class="a">${yen(c.s)}</div></div>`).join('')}<div class="d" style="font-size:12px;color:#999;margin-top:6px">紹介料が要る人なら、台帳の「紹介者」を入れると自動で上に入ります。</div></div>`;
+  if (none.length) h += `<div class="card"><h3>この月、紹介者が台帳に無い女性</h3>${none.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本</div></div></div>`).join('')}<div class="d" style="font-size:12px;color:#999;margin-top:6px">紹介料が要る人なら、台帳の「紹介者」を入れると自動で上に入ります。</div></div>`;
   return h;
 }
 async function refRuleAll() {
