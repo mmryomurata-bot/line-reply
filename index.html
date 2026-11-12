@@ -626,7 +626,7 @@ function pendTag(p) {
   if (!p) return '';
 
   // 受け入れ体制⭕️までにやることを1行の文字で出す。出勤まで2日以内は赤
-  const todo = { '時間': '出勤時間', '源氏名': '源氏名', '店泊': '店泊', 'インターバル': 'インターバル', '写真': '写真' };
+  const todo = { '時間': '出勤時間', '源氏名': '源氏名', 'インターバル': 'インターバル', '写真': '写真' };
   const soon = p.days != null && p.days <= 2;
   return `<div class="ptodo${soon ? ' soon' : ''}">⚠️ 受入れ⭕️に足りない：${p.lack.length ? p.lack.map(x => esc(todo[x] || x)).join('・') : '台帳に⭕️を付けるだけ'}${soon ? '（出勤' + (p.days <= 0 ? '本日' : 'あと' + p.days + '日') + '）' : ''}</div>`;
 }
@@ -764,7 +764,7 @@ function renderProf() {
     ${pend}
     ${photos}
     <div class="psec">やりとり</div>
-    ${kv('段階', t.stage)}${kv('源氏名', d['源氏名'])}${kv('出勤時間', d['出勤時間帯'])}${kv('店泊', d['店泊'])}${kv('インターバル', d['インターバル'])}${kv('LINE名', t.ln)}
+    ${kv('段階', t.stage)}${kv('源氏名', d['源氏名'])}${kv('出勤時間', d['出勤時間帯'])}${kv('インターバル', d['インターバル'])}${kv('LINE名', t.ln)}
     <div class="psec">台帳</div>${rows}
     <div class="psec">判定</div><div class="jbs">${judgeBtns(rw.judge || '')}</div>
     ${t.drive ? `<a class="plink" href="${esc(t.drive)}" target="_blank">Driveのフォルダを開く ›</a>` : ''}
