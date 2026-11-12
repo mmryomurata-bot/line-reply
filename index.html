@@ -289,10 +289,14 @@
   .eq .it { background:#f4f5f7; border-radius:10px; padding:7px 9px; display:flex; flex-direction:column; line-height:1.3; font-size:11.5px; color:#777; font-weight:700; flex:1; min-width:0; }
   .eq .it b { font-size:14px; color:#111; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .eq .op { color:#bbb; font-weight:900; }
+  .eq .it em { font-style:normal; font-size:10.5px; color:#888; font-weight:700; }
+  .fc .three { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; } .fc .three .box { padding:10px; } .fc .three .box .v { font-size:18px; }
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:1px; }
   .fc .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .fc .box { border-radius:12px; padding:11px 12px; background:#f7f8fa; border-top:4px solid; }
   .fc .box .l { font-size:12px; font-weight:800; color:#555; } .fc .box .v { font-size:21px; font-weight:900; margin-top:2px; letter-spacing:-.3px; font-variant-numeric:tabular-nums; } .fc .box .s { font-size:11px; color:#999; margin-top:2px; }
+  .rm .three { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; } .rm .box .v { font-size:19px; } .rm .box { padding:10px; }
+  .rmd { font-size:12.5px; color:#555; margin-top:10px; line-height:1.6; } .rmd b { display:block; font-size:11.5px; color:#888; } .rmd.fut { border-top:1px solid #f0f0f0; padding-top:8px; }
   .pbar { height:10px; background:#eef0f3; border-radius:6px; overflow:hidden; margin:14px 0 5px; } .pbar i { display:block; height:100%; border-radius:6px; }
   .pcap { display:flex; justify-content:space-between; font-size:11.5px; color:#888; }
   #appPl { padding-bottom:calc(110px + env(safe-area-inset-bottom)); }
@@ -332,6 +336,19 @@
   .fxr { display:flex; gap:6px; align-items:center; margin:4px 0; } .fxr input, .fxr select { font-size:15px; padding:8px; border:1px solid #e3e3e3; border-radius:9px; background:#fff; flex:1; min-width:0; } .fxl { font-size:12px; color:#888; flex:none; }
   .qb.sm { width:30px; height:30px; font-size:16px; flex:none; }
   .rule select, .rule input { font-size:15px; padding:8px; border:1px solid #e3e3e3; border-radius:9px; background:#fafafa; }
+  /* PCで開いたとき(横幅900px以上): 左にトーク一覧、右にやりとり(LINEのPC版の形 2026-11-13 オーナー指示) */
+  @media (min-width: 900px) {
+    :root { --lw: 390px; }
+    #list { display:block !important; position:fixed; top:0; left:0; bottom:0; width:var(--lw); overflow-y:auto; border-right:1px solid #e3e3e3; background:#fff; padding-bottom:70px; box-sizing:border-box; z-index:3; }
+    #list .bnav { left:0; right:auto; width:var(--lw); box-sizing:border-box; border-right:1px solid #e3e3e3; }
+    #thread, #guide, #crp, .prof { position:fixed !important; top:0 !important; bottom:0 !important; right:0 !important; left:var(--lw) !important; width:auto !important; height:auto !important; }
+    #thread, #guide { z-index:2; } #guide { overflow-y:auto; }
+    body::before { content:'左の一覧からトークを選んでください'; position:fixed; left:var(--lw); right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:15px; background:#f6f7f9; z-index:1; }
+    #thread .th-head .back, #guide .th-head .back { display:none; }
+    .msgs { padding:16px 28px 24px; } .b { max-width:min(68%, 640px); }
+    .app header { padding-left:max(16px, calc(50% - 480px)); padding-right:max(16px, calc(50% - 480px)); }
+    #plBody, #stBody { max-width:960px; margin:0 auto; }
+  }
 </style>
 </head>
 <body>
@@ -498,7 +515,7 @@ function applyAll(r) {
       if (CUR && TH[CUR] && !editing && !busy) { T = Object.assign({}, TH[CUR], { quota: DATA.quota }); render(); }
       if (CUR && document.getElementById('thread').style.display !== 'none') markRead(CUR);
       updateBadge();
-      if (!CUR || document.getElementById('list').style.display !== 'none') renderList();
+      if (!CUR || document.getElementById('list').style.display !== 'none' || innerWidth >= 900) renderList(); // PCは一覧も出ている
 }
 function renderList() {
   if (!DATA) return;
@@ -1107,7 +1124,7 @@ function plSumHtml() {
     <div class="l">${+P.ym.slice(5)}月の利益${F ? '（' + +F.upto.slice(5, 7) + '/' + +F.upto.slice(8) + 'まで）' : ''}</div>
     <div class="v ${neg(P.profit)}">${yen(P.profit)}</div>
     <div class="eq">
-      <div class="it"><span><i class="dot" style="background:${C_G}"></i>店落ち</span><b>${yen(gross)}</b></div><span class="op">−</span>
+      <div class="it"><span><i class="dot" style="background:${C_G}"></i>店落ち</span><b>${yen(gross)}</b><em>${P.n}本・1本 ${P.n ? yen(Math.round(gross / P.n)) : '−'}</em></div><span class="op">−</span>
       <div class="it"><span>${sb}</span><b>${yen(P.refTotal)}</b></div><span class="op">−</span>
       <div class="it"><span>経費</span><b>${yen(P.exp)}</b></div>
     </div>
@@ -1116,12 +1133,29 @@ function plSumHtml() {
   if (F) {
     const pc = F.g > 0 ? Math.max(0, Math.min(100, Math.round(gross / F.g * 100))) : 0;
     h += `<div class="card fc"><h3>月末予想<span class="chip">残り${F.left}日</span></h3>
-      <div class="two">
+      <div class="three">
         <div class="box" style="border-top-color:${C_G}"><div class="l">店落ち</div><div class="v">${yen(F.g)}</div><div class="s">1日平均 ${yen(F.avg)}</div></div>
+        <div class="box" style="border-top-color:#8a8f98"><div class="l">本数</div><div class="v">${F.n != null ? F.n + '本' : '−'}</div><div class="s">1日平均 ${F.nAvg != null ? F.nAvg : '−'}本</div></div>
         <div class="box" style="border-top-color:${C_P}"><div class="l">利益</div><div class="v ${neg(F.profit)}">${yen(F.profit)}</div><div class="s">店落ち−SB−経費</div></div>
       </div>
       <div class="pbar"><i style="width:${pc}%;background:${C_G}"></i></div>
       <div class="pcap"><span>いまの店落ち ${yen(gross)}</span><span>予想の${pc}%</span></div>
+    </div>`;
+  }
+  const RM = P.rooms; // ルームの空室(2026-11-13 オーナー指示)
+  if (RM && RM.err) h += `<div class="card"><h3>ルームの空き</h3><div class="d" style="color:#999">読めませんでした：${esc(RM.err)}</div></div>`;
+  else if (RM && RM.days) {
+    const up = +RM.upto.slice(5, 7) + '/' + +RM.upto.slice(8);
+    h += `<div class="card fc rm"><h3>ルームの空き<span class="chip">${up}まで・${RM.days}日</span></h3>
+      <div class="three">
+        <div class="box" style="border-top-color:#8a8f98"><div class="l">稼働率</div><div class="v">${RM.rate}%</div><div class="s">${RM.used}÷${RM.days * 2}部屋</div></div>
+        <div class="box" style="border-top-color:#8a8f98"><div class="l">空室回数</div><div class="v">${RM.empty}回</div><div class="s">2部屋空き＝2</div></div>
+        <div class="box" style="border-top-color:#8a8f98"><div class="l">2部屋とも空き</div><div class="v">${RM.both.length}日</div><div class="s">1部屋だけ ${RM.one.length}日</div></div>
+      </div>
+      ${RM.both.length ? `<div class="rmd"><b>2部屋とも空き</b>${RM.both.join('、')}</div>` : ''}
+      ${RM.one.length ? `<div class="rmd"><b>1部屋空き</b>${RM.one.join('、')}</div>` : ''}
+      ${RM.over && RM.over.length ? `<div class="rmd"><b>3人以上入っている日（2部屋で数えています）</b>${esc(RM.over.join('、'))}</div>` : ''}
+      ${RM.fdays ? `<div class="rmd fut"><b>この先（月末まで${RM.fdays}日）</b>稼働率 ${RM.frate}%・空室 ${RM.fempty}回${RM.fboth.length ? '／2部屋とも空き ' + RM.fboth.join('、') : ''}</div>` : ''}
     </div>`;
   }
   h += `<div class="card"><h3>損益（PL）</h3><table class="pl">
@@ -1134,7 +1168,7 @@ function plSumHtml() {
   h += `<div class="card"><h3>日別の店落ち</h3><div class="chart" id="chDay"></div></div>`;
   h += `<div class="card"><h3>月ごとの推移</h3><div class="legend"><span><i style="background:${C_G}"></i>店落ち</span><span><i style="background:${C_P}"></i>利益</span></div><div class="chart" id="chMon"></div></div>`;
   h += `<div class="card"><h3>女性別の店落ち</h3>${P.casts.length ? P.casts.map(c => `<div class="lrow"><div class="m"><div class="t">${esc(c.c)}</div><div class="d">${c.n}本・${c.days}日${c.ref ? '・' + esc(c.ref) : ''}</div></div><div class="a">${yen(c.s - c.p)}</div></div>`).join('') : '<div class="d" style="color:#999">この月の予約はありません</div>'}</div>`;
-  h += `<div class="pnote">店落ちはキャスカンのレポートの「利益」（女性別は「店舗」）をそのまま使っています。利益＝店落ち−SB−経費。SBは前の月の本数×決まりで、今月末に払う分です。月末予想は、今日までの店落ちの1日平均で残りの日を足したもの（経費は固定費1か月分＋入っている分）。${esc(P.at)} 時点</div>`;
+  h += `<div class="pnote">店落ちはキャスカンのレポートの「利益」（女性別は「店舗」）をそのまま使っています。利益＝店落ち−SB−経費。SBは前の月の本数×決まりで、今月末に払う分です。月末予想は、今日までの店落ち・本数の1日平均で残りの日を足したもの（経費は固定費1か月分＋入っている分）。稼働率はGoogleカレンダーのシフト（1人1件）で数えます。2部屋なので1日2人まで、面接などの予定は外しています。${esc(P.at)} 時点</div>`;
   return h;
 }
 function plCharts() {
