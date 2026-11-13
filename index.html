@@ -402,9 +402,9 @@
 <div class="offs" id="offs" onclick="if(event.target===this)offClose()"><div class="offbox">
   <div class="offt" id="offT"></div>
   <button class="offb" onclick="offDo('early')"><b>早退</b><span>今の時刻を台帳の備考に記録し、今日の出勤中から外します。明日からの出勤はそのまま</span></button>
-  <button class="offb" onclick="offDo('today')"><b>今日だけ休み</b><span>出勤中から外し、台帳の備考に記録します。明日からの出勤はそのまま</span></button>
+  <button class="offb" onclick="offDo('today')"><b>今日だけ休み</b><span>出勤中から外し、台帳の備考に記録します。カレンダーも今日の分だけ抜きます。明日からの出勤はそのまま</span></button>
   <button class="offb red" onclick="offDo('all')"><b>残りも全部なし</b><span>台帳を「未出勤」にします。ルーム案内・出勤確認も止まります</span></button>
-  <div class="offn">カレンダーとキャスカンのシフトは変わりません</div>
+  <div class="offn">キャスカンのシフトは変わりません（カレンダーが変わるのは「今日だけ休み」だけ）</div>
   <button class="offc" onclick="offClose()">やめる</button>
 </div></div>
 <div class="app" id="appStock"><header><div class="appsw" data-sw></div><h1>在庫</h1><div style="height:12px"></div></header><div id="stBody"></div><div style="height:70px"></div><button class="fab" onclick="stEdit()">＋ 品目を追加</button></div>
@@ -700,7 +700,7 @@ async function offDo(scope) {
     const r = await call('ibxCancelWork', rw.user, scope);
     if (!r.ok) { toast('できませんでした: ' + r.reason, 4500); return; }
     rw.today = false; if (T) T.today = false; render(); loadAll();
-    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : scope === 'early' ? '早退を記録しました（' + (r.at || '') + '）' : '今日は休みにしました', 3500);
+    toast(scope === 'all' ? '出勤を取り消しました（台帳：未出勤）' : scope === 'early' ? '早退を記録しました（' + (r.at || '') + '）' : '今日は休みにしました。' + (r.cal || ''), r.cal ? 7000 : 3500);
   } catch (e) { toast('できませんでした: ' + e.message, 4500); }
   finally { offBusy = false; }
 }
