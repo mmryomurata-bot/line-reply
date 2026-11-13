@@ -1025,13 +1025,17 @@ else if (location.hash === '#guide') openGuide();
 else if (location.hash.length > 1) openThread(location.hash.slice(1));
 // ---------- 右上の切りかえ: 受信箱・在庫・PL(2026-11-12 オーナー指示) ----------
 const APPS = [['inbox', '💬', '受信箱'], ['stock', '📦', '在庫'], ['pl', '📊', 'PL']];
-let APP = 'inbox';
+let APP = 'inbox', ROLE = '';
 try { APP = localStorage.getItem('bhApp') || 'inbox'; } catch (e) {}
+// 外注用の合言葉(2026-11-13)では受信箱だけ。分かるまで切りかえは出さない
+call('ibxRole').then(r => { ROLE = r; if (APP !== 'inbox') setApp(r === 'owner' ? APP : 'inbox'); else renderSw(); }).catch(() => {});
 function renderSw() {
+  if (ROLE !== 'owner') { document.querySelectorAll('[data-sw]').forEach(el => { el.innerHTML = ''; }); return; }
   const h = APPS.map(a => `<button class="${a[0] === APP ? 'on' : ''}" onclick="setApp('${a[0]}')">${a[1]}${a[2]}</button>`).join('');
   document.querySelectorAll('[data-sw]').forEach(el => { el.innerHTML = h; });
 }
 function setApp(a) {
+  if (ROLE !== 'owner') a = 'inbox';
   APP = a; try { localStorage.setItem('bhApp', a); } catch (e) {}
   document.getElementById('appStock').style.display = a === 'stock' ? 'block' : 'none';
   document.getElementById('appPl').style.display = a === 'pl' ? 'block' : 'none';
@@ -1358,7 +1362,7 @@ async function fxSave() {
   catch (x) { toast('保存できませんでした: ' + (x.message || x), 5000); }
 }
 renderSw();
-if (APP !== 'inbox') setTimeout(() => setApp(APP), 0);
+// 前回のタブは ibxRole が返ってから開く(外注用では受信箱だけ)
 </script>
 </body>
 </html>
